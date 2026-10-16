@@ -9,6 +9,10 @@ const DEFAULT_MCP_SETTINGS = {
   forceSdk: {
     enabled: false,
     url: "",
+    // For http URLs not on localhost: the extension fetches the file and
+    // serves it as a data: URL, because Chrome blocks http scripts on https
+    // pages. { url, code, bytes, at, error }
+    fetched: null,
   },
   localEdit: {
     enabled: false,
@@ -28,6 +32,28 @@ const SDK_SCRIPT_REGEXES = [
 ];
 
 const DNR_RULE_ID_ALLOW_TARGET = 91020;
+
+// Chrome caps URLs at 2 MB; base64 adds a third, so stay well below.
+const MAX_FETCHED_SDK_CHARS = 1400000;
+
+/** True when the replacement URL must be fetched by the extension. */
+function needsFetchedSdk(url) {
+  try {
+    const parsed = new URL(String(url || "").trim());
+    return parsed.protocol === "http:" && !isLocalHost(parsed.hostname);
+  } catch (_) {
+    return false;
+  }
+}
+
+function toBase64Utf8(text) {
+  const bytes = new TextEncoder().encode(String(text));
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
 
 /**
  * Turn free text ("https://www.example.com/path, shop.example.ca") into a
@@ -164,6 +190,15 @@ function buildSdkDnrRules(settings) {
       return { addRules: [], removeRuleIds };
     }
 
+    if (needsFetchedSdk(redirectUrl)) {
+      const fetched = settings.forceSdk.fetched;
+      if (!fetched || fetched.url !== redirectUrl || !fetched.code) {
+        // Not fetched yet (or it failed): leave the SDK alone.
+        return { addRules: [], removeRuleIds };
+      }
+      redirectUrl = "data:text/javascript;base64," + toBase64Utf8(fetched.code);
+    }
+
     SDK_SCRIPT_REGEXES.forEach((regexFilter, i) => {
       addRules.push({
         id: DNR_RULE_ID_FORCE + i,
@@ -182,7 +217,7 @@ function buildSdkDnrRules(settings) {
 
     // If the replacement itself looks like an SDK URL, let it through so the
     // redirect does not loop.
-    addRules.push({
+    if (redirectUrl.indexOf("data:") !== 0) addRules.push({
       id: DNR_RULE_ID_ALLOW_TARGET,
       priority: 60,
       action: { type: "allow" },
@@ -222,6 +257,9 @@ if (typeof globalThis !== "undefined") {
   globalThis.parseSiteList = parseSiteList;
   globalThis.siteMatches = siteMatches;
   globalThis.isLocalHost = isLocalHost;
+  globalThis.needsFetchedSdk = needsFetchedSdk;
+  globalThis.toBase64Utf8 = toBase64Utf8;
+  globalThis.MAX_FETCHED_SDK_CHARS = MAX_FETCHED_SDK_CHARS;
   globalThis.mergeSettings = mergeSettings;
   globalThis.readMcpSettings = readMcpSettings;
   globalThis.writeMcpSettings = writeMcpSettings;

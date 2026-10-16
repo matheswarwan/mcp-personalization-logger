@@ -115,12 +115,16 @@
             placeholder="https://example.com/path/to/sdk.js"
           />
           <p class="st-help">
-            A full http or https URL. Chrome blocks an http script on an https
-            page (mixed content), except from <code>localhost</code> or
-            <code>127.0.0.1</code>. For any other http URL on an https site,
-            use Edit SDK: Load from URL, then Inject and open.
+            A full http or https URL. https URLs and http URLs on
+            <code>localhost</code> or <code>127.0.0.1</code> are loaded
+            directly. Chrome blocks any other http script on an https page
+            (mixed content), so for those the extension fetches the file when
+            you save and serves its contents in place of the SDK.
           </p>
-          <p class="st-help st-warn-text" id="forceUrlWarn" hidden></p>
+          <div class="st-fetch" id="forceFetchRow" hidden>
+            <p class="st-help" id="forceFetchStatus"></p>
+            <button class="st-btn" id="BtnRefetch" type="button">Fetch again</button>
+          </div>
           <span class="st-chip">Matches: evergage(.min).js on cdn.evgnet.com, c360a(.min).js on cdn.c360a.salesforce.com</span>
           <p class="st-help">
             After saving, reload the site with the cache off (DevTools open,

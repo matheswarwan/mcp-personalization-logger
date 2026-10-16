@@ -274,6 +274,37 @@ chrome.webRequest.onErrorOccurred.addListener(
 
 /* ---------------- SDK Force URL + Local Edit ---------------- */
 
+/**
+ * Redirect to an http URL that is not on localhost: fetch it now and keep
+ * the code, so the redirect can serve it as a data: URL (see sdk-config.js).
+ */
+async function withFetchedSdk(settings) {
+  const url = String(settings.forceSdk.url || "").trim();
+  if (!settings.forceSdk.enabled || !needsFetchedSdk(url)) {
+    settings.forceSdk.fetched = null;
+    return settings;
+  }
+  const normalized = new URL(url).toString();
+  const fetched = { url: normalized, code: "", bytes: 0, at: Date.now(), error: "" };
+  try {
+    const res = await fetch(normalized, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status + " fetching " + normalized);
+    const code = await res.text();
+    if (code.length > MAX_FETCHED_SDK_CHARS) {
+      throw new Error(
+        "The file is " + Math.round(code.length / 1024) + " KB, too large to serve this way (limit " +
+          Math.round(MAX_FETCHED_SDK_CHARS / 1024) + " KB)."
+      );
+    }
+    fetched.code = code;
+    fetched.bytes = code.length;
+  } catch (err) {
+    fetched.error = String(err && err.message ? err.message : err);
+  }
+  settings.forceSdk.fetched = fetched;
+  return settings;
+}
+
 async function injectLocalSdk(tabId, pageUrl) {
   const settings = await readMcpSettings();
   if (!settings.localEdit.enabled || !settings.localEdit.edited) {
@@ -326,8 +357,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (type === "MCP_SAVE_SETTINGS") {
-    writeMcpSettings(message.settings)
+  if (type === "MCP_SAVE_SETTINGS" || type === "MCP_REFETCH_SDK") {
+    const next =
+      type === "MCP_SAVE_SETTINGS" ? Promise.resolve(message.settings) : readMcpSettings();
+    next
+      .then((settings) => withFetchedSdk(mergeSettings(settings)))
+      .then((settings) => writeMcpSettings(settings))
       .then((settings) => syncSdkDnrRules(settings).then(() => settings))
       .then((settings) => sendResponse({ ok: true, settings }))
       .catch((err) =>

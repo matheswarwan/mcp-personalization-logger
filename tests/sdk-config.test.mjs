@@ -92,3 +92,45 @@ test("edit mode blocks the CDN SDK on the sites only", () => {
   assert.ok(r.addRules.every((x) => x.action.type === "block"));
   assert.deepEqual(r.addRules[0].condition.initiatorDomains, ["a.com", "b.org"]);
 });
+
+test("needsFetchedSdk: only http URLs that are not on localhost", () => {
+  const { needsFetchedSdk } = globalThis;
+  assert.equal(needsFetchedSdk("http://dev.example.com/sdk.js"), true);
+  assert.equal(needsFetchedSdk("http://192.168.1.20:8080/sdk.js"), true);
+  assert.equal(needsFetchedSdk("http://localhost:8080/sdk.js"), false);
+  assert.equal(needsFetchedSdk("http://127.0.0.1/sdk.js"), false);
+  assert.equal(needsFetchedSdk("https://dev.example.com/sdk.js"), false);
+  assert.equal(needsFetchedSdk("nonsense"), false);
+});
+
+test("toBase64Utf8 handles non-ASCII and large input", () => {
+  const { toBase64Utf8 } = globalThis;
+  assert.equal(Buffer.from(toBase64Utf8("é ✓ x"), "base64").toString("utf8"), "é ✓ x");
+  const big = "a".repeat(200000) + "ü";
+  assert.equal(Buffer.from(toBase64Utf8(big), "base64").toString("utf8"), big);
+});
+
+test("non-local http redirect serves the fetched code as a data: URL", () => {
+  const url = "http://dev.example.com/sdk.js";
+  const base = { sites: ["a.com"], forceSdk: { enabled: true, url } };
+  // Not fetched yet: nothing.
+  assert.equal(buildSdkDnrRules(mergeSettings(base)).addRules.length, 0);
+  // Fetched for a different URL or failed: nothing.
+  for (const fetched of [
+    { url: "http://other.example.com/sdk.js", code: "x" },
+    { url, code: "", error: "HTTP 404" },
+  ]) {
+    const r = buildSdkDnrRules(mergeSettings({ ...base, forceSdk: { ...base.forceSdk, fetched } }));
+    assert.equal(r.addRules.length, 0);
+  }
+  const r = buildSdkDnrRules(
+    mergeSettings({ ...base, forceSdk: { ...base.forceSdk, fetched: { url, code: 'window.x="ü";' } } })
+  );
+  assert.equal(r.addRules.length, 2);
+  r.addRules.forEach((x) => {
+    assert.equal(x.action.type, "redirect");
+    const u = x.action.redirect.url;
+    assert.ok(u.startsWith("data:text/javascript;base64,"));
+    assert.equal(Buffer.from(u.split(",")[1], "base64").toString("utf8"), 'window.x="ü";');
+  });
+});

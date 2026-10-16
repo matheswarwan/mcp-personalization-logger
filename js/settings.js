@@ -27,7 +27,8 @@
     openUrl: document.getElementById("openUrl"),
     openTabHosts: document.getElementById("openTabHosts"),
     openTabHostList: document.getElementById("openTabHostList"),
-    forceUrlWarn: document.getElementById("forceUrlWarn"),
+    forceFetchRow: document.getElementById("forceFetchRow"),
+    forceFetchStatus: document.getElementById("forceFetchStatus"),
   };
 
   let originalText = "";
@@ -36,6 +37,7 @@
   let updatedAt = null;
   let savedSnapshot = "";
   let activeMode = "redirect";
+  let lastFetched = null;
 
   function setStatus(message, kind) {
     els.statusLine.textContent = message || "Ready.";
@@ -172,6 +174,7 @@
 
   function applySettings(settings) {
     const s = mergeSettings(settings);
+    lastFetched = s.forceSdk.fetched || null;
     els.sitesInput.value = s.sites.join(", ");
     els.openUrl.value = s.localEdit.openUrl || els.openUrl.value || "";
     els.forceEnabled.checked = !!s.forceSdk.enabled;
@@ -237,6 +240,11 @@
     applySettings(res.settings);
 
     const where = describeSites(res.settings.sites);
+    const f = res.settings.forceSdk.fetched;
+    if (res.settings.forceSdk.enabled && f && f.error) {
+      setStatus("Settings saved, but fetching the replacement failed: " + f.error, "err");
+      return;
+    }
     if (res.settings.forceSdk.enabled) {
       setStatus("Settings saved. Redirect is on for " + where + ". Reload those pages.", "ok");
     } else if (res.settings.localEdit.enabled) {
@@ -424,12 +432,31 @@
   }
 
   function updateForceUrlWarning() {
-    const parsed = parseHttpUrl(els.forceUrl.value);
-    const show = !!parsed && parsed.protocol === "http:" && !isLocalHost(parsed.hostname);
-    els.forceUrlWarn.hidden = !show;
-    els.forceUrlWarn.textContent = show
-      ? "This is an http URL. It works on http sites; on https sites Chrome will block it."
-      : "";
+    const url = els.forceUrl.value.trim();
+    const show = needsFetchedSdk(url);
+    els.forceFetchRow.hidden = !show;
+    if (!show) return;
+    const parsed = parseHttpUrl(url);
+    const f = lastFetched;
+    let text;
+    let isErr = false;
+    if (!f || f.url !== parsed.toString()) {
+      text = "The extension will fetch this http file when you save.";
+    } else if (f.error) {
+      text = "Fetch failed: " + f.error + " The SDK loads normally until a fetch works.";
+      isErr = true;
+    } else {
+      text =
+        "Fetched " +
+        (f.bytes < 1024 ? f.bytes + " bytes" : (f.bytes / 1024).toFixed(1) + " KB") +
+        " at " +
+        new Date(f.at).toLocaleTimeString() +
+        ". After changing the file, click Fetch again.";
+    }
+    els.forceFetchStatus.textContent = text;
+    els.forceFetchStatus.classList.toggle("err", isErr);
+    document.getElementById("BtnRefetch").disabled =
+      !(f && f.url === parsed.toString() && els.forceEnabled.checked);
   }
 
   function addSite(hostname) {
@@ -549,6 +576,19 @@
     document.getElementById("BtnHideDiff").addEventListener("click", () => {
       els.diffPanel.classList.remove("visible");
     });
+    document.getElementById("BtnRefetch").addEventListener("click", async () => {
+      setStatus("Fetching...");
+      try {
+        const res = await sendMessage({ type: "MCP_REFETCH_SDK" });
+        if (!res.ok) throw new Error(res.error || "Fetch failed");
+        applySettings(res.settings);
+        const f = res.settings.forceSdk.fetched;
+        if (f && f.error) setStatus("Fetch failed: " + f.error, "err");
+        else setStatus("Fetched the replacement again. Reload the site with the cache off.", "ok");
+      } catch (e) {
+        setStatus(String(e.message || e), "err");
+      }
+    });
     document.getElementById("BtnInjectOpen").addEventListener("click", () => {
       injectAndOpen().catch((e) => setStatus(String(e.message || e), "err"));
     });
@@ -569,6 +609,7 @@
         els.localEnabled.checked = false;
         setStatus("Edit SDK turned off: only one of Redirect and Edit can be on.", "warn");
       }
+      updateForceUrlWarning();
       updateDirtyBadge();
     });
     els.localEnabled.addEventListener("change", () => {
