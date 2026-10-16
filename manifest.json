@@ -2,9 +2,9 @@
   "manifest_version": 3,
   "name": "Interaction Studio (MCP) Logger",
   "description": "This add-on logs all events that are sent to Salesforce's Marketing Cloud Personalization server and stores it in local storage.",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "author": "mathes.btech@gmail.com",
-  "version_name": "0.0.5",
+  "version_name": "0.0.6",
   "icons": {
     "16": "/images/cloud/cloud-16.png",
     "32": "/images/cloud/cloud-32.png",

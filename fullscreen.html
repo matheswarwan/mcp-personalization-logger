@@ -21,9 +21,44 @@
           <div class="fs-header-actions">
           <span class="fs-stat" id="fsTotalStat">0 events</span>
           <button class="fs-btn" id="BtnFsSdkTools" type="button">SDK Tools</button>
-          <button class="fs-btn" id="BtnFsDownloadFiltered" type="button">
-            Download Filtered
-          </button>
+          <div class="fs-export">
+            <button
+              class="fs-btn fs-btn-primary"
+              id="BtnFsExport"
+              type="button"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-controls="fsExportMenu"
+            >
+              Export
+            </button>
+            <div class="fs-export-menu" id="fsExportMenu" role="menu" hidden>
+              <fieldset class="fs-export-scope">
+                <legend>Events</legend>
+                <label><input type="radio" name="fsExportScope" value="view" checked /> This view (<span id="fsExportViewCount">0</span>)</label>
+                <label><input type="radio" name="fsExportScope" value="all-sites" /> All sites, same filters (<span id="fsExportAllCount">0</span>)</label>
+              </fieldset>
+              <label class="fs-export-mask"><input type="checkbox" id="fsExportMask" checked /> Hide personal data (emails, names, phone, address, tokens)</label>
+              <div class="fs-export-actions">
+                <button class="fs-btn fs-btn-primary" type="button" data-export="agent" role="menuitem">
+                  Copy for agent (Markdown)
+                </button>
+                <button class="fs-btn" type="button" data-export="md" role="menuitem">
+                  Download Markdown
+                </button>
+                <button class="fs-btn" type="button" data-export="json" role="menuitem">
+                  Download JSON
+                </button>
+                <button class="fs-btn" type="button" data-export="html" role="menuitem">
+                  Download HTML report
+                </button>
+              </div>
+              <p class="fs-export-note">
+                Copy for agent cuts each payload at 4,000 characters so it fits in a
+                prompt. The downloads keep full payloads.
+              </p>
+            </div>
+          </div>
           <button class="fs-btn" id="BtnFsRefresh" type="button">Refresh</button>
           <button class="fs-btn fs-btn-danger" id="BtnFsClear" type="button">
             Clear All
@@ -74,6 +109,14 @@
 
         <div class="fs-toolbar-meta">
           <div id="fsFilteredStat">Showing 0 events</div>
+          <div class="fs-status" id="fsStatusChips">
+            <button class="fs-chip active" type="button" data-status="all">
+              All statuses
+            </button>
+            <button class="fs-chip" type="button" data-status="failed">
+              Failed only
+            </button>
+          </div>
           <div class="fs-sort">
             <button class="fs-chip active" type="button" data-sort="desc">
               Newest first
@@ -98,6 +141,9 @@
           <div class="fs-panel-header">
             <h2>Event details</h2>
             <div class="fs-detail-actions">
+              <button class="fs-btn" id="BtnCopyEventAgent" type="button" title="Copy this event as Markdown for an AI agent (personal data hidden)">
+                Copy for agent
+              </button>
               <button class="fs-btn" id="BtnDownloadJson" type="button">
                 Download JSON
               </button>
@@ -120,6 +166,7 @@
     <script src="./js/bootstrap.bundle.min.js"></script>
     <script src="./js/moment-with-locales.min.js"></script>
     <script src="./js/json-viewer.js"></script>
+    <script src="./js/exporters.js"></script>
     <script src="./js/fullscreen.js"></script>
   </body>
 </html>

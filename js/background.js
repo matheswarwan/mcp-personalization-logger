@@ -193,13 +193,12 @@ function saveEvent(request, payload, statusCode) {
     .then(
       () =>
         new Promise((resolve) => {
-          chrome.storage.local.get(null, function (originalPayload) {
-            if (Object.keys(originalPayload).includes(hostName)) {
-              originalPayload[hostName].push(isPayload);
-            } else {
-              originalPayload[hostName] = [isPayload];
-            }
-            chrome.storage.local.set(originalPayload, async function () {
+          // Read and write only this site's list: rewriting all of storage on
+          // every event got slower as the log (and saved SDK code) grew.
+          chrome.storage.local.get(hostName, function (stored) {
+            const list = Array.isArray(stored[hostName]) ? stored[hostName] : [];
+            list.push(isPayload);
+            chrome.storage.local.set({ [hostName]: list }, async function () {
               try {
                 chrome.action.setIcon({
                   path: "../images/activeImg/cloud-48.png",

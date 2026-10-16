@@ -6,6 +6,7 @@
     timeRange: "24h",
     sort: "desc",
     search: "",
+    status: "all",
     customFrom: null,
     customTo: null,
     selectedEventId: null,
@@ -36,9 +37,11 @@
   }
 
   function downloadJson(data, filename) {
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    });
+    downloadText(JSON.stringify(data, null, 2), filename, "application/json");
+  }
+
+  function downloadText(text, filename, type) {
+    const blob = new Blob([text], { type: type + ";charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -215,6 +218,9 @@
         const capturedAt = Number(entry.eventTime || entry.datetime || key);
         const statusCode = getStatusCode(entry);
         const requestUrl = entry.url || "";
+        const sdk =
+          entry.sdk ||
+          (requestUrl.indexOf("c360a.salesforce.com") > -1 ? "data-cloud" : "evergage");
 
         // Expand Data Cloud batches so each nested event sorts on its own ms timestamp.
         const nestedEvents =
@@ -245,6 +251,7 @@
             statusCode,
             payload: nestedPayload,
             url: requestUrl,
+            sdk,
             action: getActionName(nestedPayload),
             itemAction: getItemAction(nestedPayload),
             pageUrl: getPageUrl(nestedPayload, requestUrl),
@@ -287,9 +294,27 @@
     }
   }
 
+  function isFailed(event) {
+    return (
+      event.statusCode == null || event.statusCode < 200 || event.statusCode >= 400
+    );
+  }
+
   function getFilteredEvents() {
     if (!state.activeSite) return [];
-    const events = state.eventsBySite[state.activeSite] || [];
+    return filterEvents(state.eventsBySite[state.activeSite] || []);
+  }
+
+  function getAllSitesFilteredEvents() {
+    return filterEvents(
+      state.sites.reduce(
+        (all, site) => all.concat(state.eventsBySite[site] || []),
+        []
+      )
+    );
+  }
+
+  function filterEvents(events) {
     const { from, to } = getRangeBounds();
     const q = state.search.trim().toLowerCase();
 
@@ -297,6 +322,7 @@
       const m = moment(event.ts);
       if (from && m.isBefore(from)) return false;
       if (to && m.isAfter(to)) return false;
+      if (state.status === "failed" && !isFailed(event)) return false;
       if (!q) return true;
       const haystack = [
         event.action,
@@ -336,8 +362,105 @@
       .join("");
   }
 
+  function renderExportCounts(viewCount) {
+    const view = document.getElementById("fsExportViewCount");
+    const all = document.getElementById("fsExportAllCount");
+    if (view) view.textContent = String(viewCount);
+    if (all) all.textContent = String(getAllSitesFilteredEvents().length);
+  }
+
+  function describeTimeRange() {
+    const chip = document.querySelector(
+      '#fsTimeChips .fs-chip[data-range="' + state.timeRange + '"]'
+    );
+    const label = chip ? chip.textContent.trim() : state.timeRange;
+    if (state.timeRange !== "custom") return label;
+    return (
+      label + " (" + (state.customFrom || "start") + " to " + (state.customTo || "now") + ")"
+    );
+  }
+
+  function getExtensionVersion() {
+    try {
+      return chrome.runtime.getManifest().version;
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function buildModel(events, scope, maskPersonalData) {
+    return McpExport.buildExportModel(events, {
+      extensionVersion: getExtensionVersion(),
+      scope,
+      maskPersonalData,
+      filters: {
+        timeRange: describeTimeRange(),
+        search: state.search.trim(),
+        status: state.status,
+      },
+    });
+  }
+
+  function setExportMenuOpen(open) {
+    const menu = document.getElementById("fsExportMenu");
+    const btn = document.getElementById("BtnFsExport");
+    menu.hidden = !open;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  async function runExport(kind, triggerBtn) {
+    const scopeInput = document.querySelector('input[name="fsExportScope"]:checked');
+    const allSites = scopeInput && scopeInput.value === "all-sites";
+    const events = allSites ? getAllSitesFilteredEvents() : getFilteredEvents();
+    if (!events.length) {
+      flashElementLabel(triggerBtn, "No events to export");
+      return;
+    }
+    const mask = document.getElementById("fsExportMask").checked;
+    const scope = allSites ? "All sites" : state.activeSite;
+    const model = buildModel(events, scope, mask);
+    const base =
+      "mcp-events-" +
+      (allSites ? "all-sites" : McpExport.slug(String(state.activeSite).split("|")[0])) +
+      "-" +
+      McpExport.fileStamp();
+
+    if (kind === "agent") {
+      const text = McpExport.toMarkdown(model, {
+        maxPayloadChars: McpExport.DEFAULT_AGENT_PAYLOAD_CHARS,
+      });
+      try {
+        await navigator.clipboard.writeText(text);
+        flashElementLabel(triggerBtn, "Copied " + events.length + " events");
+      } catch (e) {
+        console.error("Copy failed", e);
+        flashElementLabel(triggerBtn, "Copy failed");
+      }
+      return;
+    }
+    if (kind === "md") {
+      downloadText(McpExport.toMarkdown(model), base + ".md", "text/markdown");
+    } else if (kind === "json") {
+      downloadText(McpExport.toJson(model), base + ".json", "application/json");
+    } else if (kind === "html") {
+      downloadText(McpExport.toHtmlReport(model), base + ".html", "text/html");
+    }
+    flashElementLabel(triggerBtn, "Downloaded");
+  }
+
+  function flashElementLabel(btn, label) {
+    if (!btn) return;
+    if (!btn.dataset.label) btn.dataset.label = btn.textContent.trim();
+    btn.textContent = label;
+    clearTimeout(btn._flashTimer);
+    btn._flashTimer = setTimeout(() => {
+      btn.textContent = btn.dataset.label;
+    }, 1400);
+  }
+
   function renderTimeline() {
     const events = getFilteredEvents();
+    renderExportCounts(events.length);
     els.filteredStat.textContent =
       "Showing " + events.length + " event" + (events.length === 1 ? "" : "s");
     els.streamSubtitle.textContent = state.activeSite
@@ -575,45 +698,53 @@
       flashButtonLabel("BtnDownloadJson", "Downloaded!");
     });
 
-    document
-      .getElementById("BtnFsDownloadFiltered")
-      .addEventListener("click", () => {
-        const events = getFilteredEvents();
-        if (!events.length) return;
-        const exportPayload = {
-          exportedAt: new Date().toISOString(),
-          site: state.activeSite,
-          timeRange: state.timeRange,
-          search: state.search,
-          sort: state.sort,
-          count: events.length,
-          events: events.map((event) => ({
-            id: event.id,
-            timestamp: event.ts,
-            isoTime: new Date(event.ts).toISOString(),
-            action: event.action,
-            itemAction: event.itemAction,
-            pageType: event.pageType,
-            pageUrl: event.pageUrl,
-            statusCode: event.statusCode,
-            requestUrl: event.url,
-            payload: event.payload,
-          })),
-        };
-        const stamp = moment().format("YYYYMMDD-HHmmss");
-        const sitePart = String(state.activeSite || "all")
-          .split("|")[0]
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "")
-          .slice(0, 40);
-        downloadJson(
-          exportPayload,
-          "mcp-events-" + sitePart + "-" + stamp + ".json"
+    const exportBtn = document.getElementById("BtnFsExport");
+    const exportMenu = document.getElementById("fsExportMenu");
+    exportBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      renderExportCounts(getFilteredEvents().length);
+      setExportMenuOpen(exportMenu.hidden);
+    });
+    exportMenu.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const btn = e.target.closest("[data-export]");
+      if (btn) runExport(btn.getAttribute("data-export"), btn);
+    });
+    document.addEventListener("click", () => setExportMenuOpen(false));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !exportMenu.hidden) {
+        setExportMenuOpen(false);
+        exportBtn.focus();
+      }
+    });
+
+    document.getElementById("BtnCopyEventAgent").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const selected = getFilteredEvents().find((ev) => ev.id === state.selectedEventId);
+      if (!selected) return;
+      const model = buildModel([selected], selected.site, true);
+      try {
+        await navigator.clipboard.writeText(
+          McpExport.toMarkdown(model, {
+            maxPayloadChars: McpExport.DEFAULT_AGENT_PAYLOAD_CHARS,
+          })
         );
-        flashButtonLabel("BtnFsDownloadFiltered", "Downloaded!");
-      });
+        flashElementLabel(btn, "Copied!");
+      } catch (err) {
+        console.error("Copy failed", err);
+        flashElementLabel(btn, "Copy failed");
+      }
+    });
+
+    document.getElementById("fsStatusChips").addEventListener("click", (e) => {
+      const chip = e.target.closest("[data-status]");
+      if (!chip) return;
+      state.status = chip.getAttribute("data-status");
+      document
+        .querySelectorAll("#fsStatusChips .fs-chip")
+        .forEach((el) => el.classList.toggle("active", el === chip));
+      renderTimeline();
+    });
 
     els.tabs.addEventListener("click", (e) => {
       const tab = e.target.closest(".fs-tab");

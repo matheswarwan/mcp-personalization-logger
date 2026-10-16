@@ -118,7 +118,11 @@ async function init() {
     for (var item = savedItems.length - 1; item >= 0; item--) {
       var key = Object.keys(savedItems[item])[0];
       var entry = savedItems[item][key] || {};
-      var tmpDate = new Date(Number(key));
+      // Keys are "<eventTime>-<capturedAt>" since 0.0.5 (plain epoch before),
+      // so Number(key) is NaN for new entries.
+      var tmpDate = new Date(
+        Number(entry["eventTime"] || entry["datetime"] || parseInt(key, 10))
+      );
       var dateSince = moment(tmpDate).fromNow();
       var savedUrlText = "";
       try {
