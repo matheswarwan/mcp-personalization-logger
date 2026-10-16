@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SDK Tools — MCP Logger</title>
+    <title>SDK Tools - MCP Logger</title>
     <link rel="stylesheet" href="./css/settings.css" />
   </head>
   <body>
@@ -28,6 +28,34 @@
           </button>
         </div>
       </header>
+
+      <section class="st-panel active st-sites" aria-labelledby="sitesTitle">
+        <h2 class="st-panel-title" id="sitesTitle">Sites</h2>
+        <p class="st-panel-desc">
+          Redirect and Edit only apply on these sites. Other sites load the
+          SDK normally.
+        </p>
+        <div class="st-field">
+          <label class="st-label" for="sitesInput">Only on these sites</label>
+          <textarea
+            class="st-input st-sites-input"
+            id="sitesInput"
+            rows="2"
+            spellcheck="false"
+            placeholder="example.com, shop.example.ca"
+          ></textarea>
+          <p class="st-help">
+            One domain per line or separated by commas. Subdomains are
+            included (<code>example.com</code> covers
+            <code>www.example.com</code>). Pasting a full URL is fine. Use
+            <code>*</code> for every site.
+          </p>
+          <div class="st-tab-hosts" id="openTabHosts" hidden>
+            <span class="st-help">Add from open tabs:</span>
+            <span id="openTabHostList"></span>
+          </div>
+        </div>
+      </section>
 
       <div class="st-mode-switch" role="tablist" aria-label="SDK tool mode">
         <button
@@ -67,8 +95,9 @@
           <div class="st-toggle-copy">
             <strong>Redirect Salesforce SDK requests</strong>
             <p>
-              When enabled, requests for <code>evergage.min.js</code> and
-              <code>c360a.min.js</code> are redirected to the URL below.
+              When on, requests for <code>evergage.min.js</code> and
+              <code>c360a.min.js</code> (http or https) made by the sites
+              above go to the URL below. Turning this on turns off Edit SDK.
             </p>
           </div>
           <label class="st-switch" title="Toggle redirect">
@@ -86,10 +115,17 @@
             placeholder="https://example.com/path/to/sdk.js"
           />
           <p class="st-help">
-            Use a full HTTPS URL. This setting applies to matching SDK requests
-            in browser tabs.
+            A full http or https URL. Chrome blocks an http script on an https
+            page (mixed content), except from <code>localhost</code> or
+            <code>127.0.0.1</code>. For any other http URL on an https site,
+            use Edit SDK: Load from URL, then Inject and open.
           </p>
-          <span class="st-chip">Matches: evergage.min.js, c360a.min.js</span>
+          <p class="st-help st-warn-text" id="forceUrlWarn" hidden></p>
+          <span class="st-chip">Matches: evergage(.min).js on cdn.evgnet.com, c360a(.min).js on cdn.c360a.salesforce.com</span>
+          <p class="st-help">
+            After saving, reload the site with the cache off (DevTools open,
+            Network: Disable cache) so the browser does not reuse a cached SDK.
+          </p>
         </div>
 
         <div class="st-empty" id="redirectEmpty">
@@ -107,16 +143,17 @@
       >
         <h2 class="st-panel-title">Edit a local SDK copy</h2>
         <p class="st-panel-desc">
-          Load a JavaScript file, make temporary edits, and inject the edited
-          version into the active tab.
+          Load a JavaScript file, make temporary edits, and run the edited
+          version on the sites above instead of the CDN SDK.
         </p>
 
         <div class="st-toggle-row">
           <div class="st-toggle-copy">
             <strong>Enable edited SDK injection</strong>
             <p>
-              When enabled, CDN SDK scripts are blocked and your edited copy is
-              injected on page load.
+              When on, the CDN SDK is blocked on the sites above and your edited
+              copy runs on every page load there. Turning this on turns off
+              Redirect.
             </p>
           </div>
           <label class="st-switch" title="Toggle local edit injection">
@@ -177,10 +214,23 @@
 
         <div class="st-step" id="StepUse">
           <h3 class="st-step-title"><span>3</span>Use edited SDK</h3>
-          <div class="st-editor-actions">
-            <button class="st-btn st-btn-primary" id="BtnInjectTab" type="button">
-              Inject into active tab
+          <label class="st-label" for="openUrl">Page to open</label>
+          <div class="st-open-row">
+            <input
+              class="st-input"
+              id="openUrl"
+              type="url"
+              placeholder="https://www.example.com/"
+            />
+            <button class="st-btn st-btn-primary" id="BtnInjectOpen" type="button">
+              Inject and open
             </button>
+          </div>
+          <p class="st-help">
+            Saves the edited SDK, turns on injection, and opens the page in a
+            new tab. Its site is added to Sites if it is not there yet.
+          </p>
+          <div class="st-editor-actions">
             <button class="st-btn" id="BtnCompare" type="button">
               Compare changes
             </button>
@@ -192,8 +242,7 @@
             </button>
           </div>
           <p class="st-help">
-            Injection affects the active tab only. Download saves your edited
-            copy as a JavaScript file.
+            Download saves your edited copy as a JavaScript file.
           </p>
 
           <div class="st-diff" id="diffPanel">

@@ -274,10 +274,17 @@ chrome.webRequest.onErrorOccurred.addListener(
 
 /* ---------------- SDK Force URL + Local Edit ---------------- */
 
-async function injectLocalSdk(tabId) {
+async function injectLocalSdk(tabId, pageUrl) {
   const settings = await readMcpSettings();
   if (!settings.localEdit.enabled || !settings.localEdit.edited) {
     return { injected: false, reason: "disabled" };
+  }
+  let hostname = "";
+  try {
+    hostname = new URL(pageUrl || "").hostname;
+  } catch (_) {}
+  if (!siteMatches(settings.sites, hostname)) {
+    return { injected: false, reason: "site-not-listed" };
   }
 
   const code = settings.localEdit.edited;
@@ -356,7 +363,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: false, error: "No tab id" });
       return false;
     }
-    injectLocalSdk(tabId)
+    // From the content script, sender.url is the page being loaded.
+    const pageUrl = message.url || sender.url || (sender.tab && sender.tab.url) || "";
+    injectLocalSdk(tabId, pageUrl)
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((err) =>
         sendResponse({ ok: false, error: String(err && err.message ? err.message : err) })

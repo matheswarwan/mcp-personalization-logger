@@ -23,6 +23,11 @@
     tabEdit: document.getElementById("TabEdit"),
     stepEdit: document.getElementById("StepEdit"),
     stepUse: document.getElementById("StepUse"),
+    sitesInput: document.getElementById("sitesInput"),
+    openUrl: document.getElementById("openUrl"),
+    openTabHosts: document.getElementById("openTabHosts"),
+    openTabHostList: document.getElementById("openTabHostList"),
+    forceUrlWarn: document.getElementById("forceUrlWarn"),
   };
 
   let originalText = "";
@@ -52,6 +57,7 @@
 
   function collectSettings() {
     return {
+      sites: parseSiteList(els.sitesInput.value),
       forceSdk: {
         enabled: !!els.forceEnabled.checked,
         url: els.forceUrl.value.trim(),
@@ -63,12 +69,14 @@
         original: originalText || "",
         edited: els.sdkEditor.value || "",
         updatedAt: updatedAt,
+        openUrl: els.openUrl.value.trim(),
       },
     };
   }
 
   function snapshotOf(settings) {
     return JSON.stringify({
+      sites: settings.sites,
       forceSdk: settings.forceSdk,
       localEdit: {
         enabled: settings.localEdit.enabled,
@@ -78,6 +86,7 @@
         original: settings.localEdit.original,
         edited: settings.localEdit.edited,
         updatedAt: settings.localEdit.updatedAt,
+        openUrl: settings.localEdit.openUrl,
       },
     });
   }
@@ -107,7 +116,7 @@
     els.stepUse.style.opacity = loaded ? "1" : "0.55";
 
     [
-      "BtnInjectTab",
+      "BtnInjectOpen",
       "BtnCompare",
       "BtnDownloadEdited",
       "BtnResetEdited",
@@ -163,6 +172,8 @@
 
   function applySettings(settings) {
     const s = mergeSettings(settings);
+    els.sitesInput.value = s.sites.join(", ");
+    els.openUrl.value = s.localEdit.openUrl || els.openUrl.value || "";
     els.forceEnabled.checked = !!s.forceSdk.enabled;
     els.forceUrl.value = s.forceSdk.url || "";
     els.localEnabled.checked = !!s.localEdit.enabled;
@@ -173,6 +184,7 @@
     loadedSourceUrl = s.localEdit.sourceUrl || "";
     updatedAt = s.localEdit.updatedAt || null;
     savedSnapshot = snapshotOf(collectSettings());
+    updateForceUrlWarning();
     updateRedirectEmpty();
     updateEditChrome();
   }
@@ -187,23 +199,16 @@
   async function saveSettings() {
     const settings = collectSettings();
 
-    if (settings.forceSdk.enabled) {
-      const url = settings.forceSdk.url;
-      if (!url) {
-        setStatus("Enter a valid HTTPS URL.", "err");
-        setMode("redirect");
-        return;
-      }
-      try {
-        const parsed = new URL(url);
-        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-          throw new Error("invalid");
-        }
-      } catch (_) {
-        setStatus("Enter a valid HTTPS URL.", "err");
-        setMode("redirect");
-        return;
-      }
+    if ((settings.forceSdk.enabled || settings.localEdit.enabled) && !settings.sites.length) {
+      setStatus("Add at least one site under Sites (or * for every site).", "err");
+      els.sitesInput.focus();
+      return;
+    }
+
+    if (settings.forceSdk.enabled && !parseHttpUrl(settings.forceSdk.url)) {
+      setStatus("Enter a full http or https URL for the replacement SDK.", "err");
+      setMode("redirect");
+      return;
     }
 
     if (settings.localEdit.enabled && !settings.localEdit.edited) {
@@ -216,10 +221,8 @@
     }
 
     if (settings.forceSdk.enabled && settings.localEdit.enabled) {
-      setStatus(
-        "Edited SDK injection is active and takes priority over redirect.",
-        "warn"
-      );
+      // Older saved settings could have both on; Redirect is the one shown first.
+      settings.localEdit.enabled = false;
     }
 
     updatedAt = updatedAt || Date.now();
@@ -233,11 +236,12 @@
 
     applySettings(res.settings);
 
+    const where = describeSites(res.settings.sites);
     if (res.settings.forceSdk.enabled) {
-      setStatus("Settings saved. Redirect is active.", "ok");
+      setStatus("Settings saved. Redirect is on for " + where + ". Reload those pages.", "ok");
     } else if (res.settings.localEdit.enabled) {
       setStatus(
-        "Settings saved. Edited SDK injection is active on page load.",
+        "Settings saved. The edited SDK runs on " + where + " on page load.",
         "ok"
       );
     } else {
@@ -250,11 +254,11 @@
 
   async function loadFromUrl() {
     const url = els.sdkSourceUrl.value.trim();
-    if (!url) {
-      setStatus("Enter a valid HTTPS URL.", "err");
+    if (!parseHttpUrl(url)) {
+      setStatus("Enter a full http or https URL.", "err");
       return;
     }
-    setStatus("Loading SDK…");
+    setStatus("Loading SDK...");
     const res = await sendMessage({ type: "MCP_FETCH_SDK", url });
     if (!res.ok) {
       setStatus(res.error || "Failed to fetch SDK", "err");
@@ -402,17 +406,99 @@
     setStatus("Editor reset to original SDK.", "ok");
   }
 
-  async function injectActiveTab() {
+  function parseHttpUrl(value) {
+    try {
+      const parsed = new URL(String(value || "").trim());
+      return parsed.protocol === "http:" || parsed.protocol === "https:"
+        ? parsed
+        : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function describeSites(sites) {
+    if (!sites || !sites.length) return "no sites";
+    if (sites.includes("*")) return "every site";
+    return sites.join(", ");
+  }
+
+  function updateForceUrlWarning() {
+    const parsed = parseHttpUrl(els.forceUrl.value);
+    const show = !!parsed && parsed.protocol === "http:" && !isLocalHost(parsed.hostname);
+    els.forceUrlWarn.hidden = !show;
+    els.forceUrlWarn.textContent = show
+      ? "This is an http URL. It works on http sites; on https sites Chrome will block it."
+      : "";
+  }
+
+  function addSite(hostname) {
+    const sites = parseSiteList(els.sitesInput.value);
+    if (siteMatches(sites, hostname)) return false;
+    sites.push(hostname.replace(/^www\./, ""));
+    els.sitesInput.value = parseSiteList(sites).join(", ");
+    updateDirtyBadge();
+    renderOpenTabHosts();
+    return true;
+  }
+
+  async function getWebTabs() {
+    try {
+      const tabs = await chrome.tabs.query({});
+      return tabs
+        .filter((t) => /^https?:/i.test(t.url || ""))
+        .sort((x, y) => (y.lastAccessed || 0) - (x.lastAccessed || 0));
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function renderOpenTabHosts() {
+    const listed = parseSiteList(els.sitesInput.value);
+    const hosts = [];
+    (await getWebTabs()).forEach((t) => {
+      const host = new URL(t.url).hostname;
+      if (!hosts.includes(host) && !siteMatches(listed, host)) hosts.push(host);
+    });
+    els.openTabHosts.hidden = !hosts.length;
+    els.openTabHostList.innerHTML = hosts
+      .slice(0, 12)
+      .map(
+        (h) =>
+          '<button type="button" class="st-host-chip" data-host="' +
+          escapeHtml(h) +
+          '">' +
+          escapeHtml(h) +
+          "</button>"
+      )
+      .join("");
+  }
+
+  async function prefillOpenUrl() {
+    if (els.openUrl.value.trim()) return;
+    const tabs = await getWebTabs();
+    if (tabs.length) els.openUrl.value = tabs[0].url;
+  }
+
+  async function injectAndOpen() {
     if (!els.sdkEditor.value) {
       setStatus("Load an SDK before injecting.", "err");
       return;
     }
+    const target = parseHttpUrl(els.openUrl.value);
+    if (!target) {
+      setStatus("Enter the full http or https URL of the page to open.", "err");
+      els.openUrl.focus();
+      return;
+    }
 
+    const added = addSite(target.hostname);
     updatedAt = Date.now();
-    const settings = collectSettings();
-    settings.localEdit.enabled = true;
-    settings.localEdit.updatedAt = updatedAt;
     els.localEnabled.checked = true;
+    els.forceEnabled.checked = false;
+    updateRedirectEmpty();
+    const settings = collectSettings();
+    settings.localEdit.updatedAt = updatedAt;
 
     const saved = await sendMessage({ type: "MCP_SAVE_SETTINGS", settings });
     if (!saved.ok) {
@@ -421,36 +507,16 @@
     }
     applySettings(saved.settings);
 
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const tab = tabs && tabs[0];
-    if (!tab || !tab.id) {
-      setStatus(
-        "Could not inject into the active tab. Check that the tab is a supported page and try again.",
-        "err"
-      );
-      return;
-    }
-    if (!/^https?:/i.test(tab.url || "")) {
-      setStatus(
-        "Could not inject into the active tab. Check that the tab is a supported page and try again.",
-        "err"
-      );
-      return;
-    }
-
-    const res = await sendMessage({
-      type: "MCP_INJECT_LOCAL_SDK",
-      tabId: tab.id,
-    });
-    if (!res.ok || !res.injected) {
-      setStatus(
-        res.error ||
-          "Could not inject into the active tab. Check that the tab is a supported page and try again.",
-        "err"
-      );
-      return;
-    }
-    setStatus("Edited SDK injected into the active tab.", "ok");
+    // The content script asks for the edited SDK at document_start, so a
+    // fresh tab gets it before the page's own scripts run.
+    await chrome.tabs.create({ url: target.toString() });
+    setStatus(
+      "Opened " +
+        target.hostname +
+        " with the edited SDK." +
+        (added ? " Added " + target.hostname.replace(/^www\./, "") + " to Sites." : ""),
+      "ok"
+    );
   }
 
   async function init() {
@@ -483,8 +549,35 @@
     document.getElementById("BtnHideDiff").addEventListener("click", () => {
       els.diffPanel.classList.remove("visible");
     });
-    document.getElementById("BtnInjectTab").addEventListener("click", () => {
-      injectActiveTab().catch((e) => setStatus(String(e.message || e), "err"));
+    document.getElementById("BtnInjectOpen").addEventListener("click", () => {
+      injectAndOpen().catch((e) => setStatus(String(e.message || e), "err"));
+    });
+    els.openTabHostList.addEventListener("click", (e) => {
+      const chip = e.target.closest("[data-host]");
+      if (chip) addSite(chip.getAttribute("data-host"));
+    });
+    els.sitesInput.addEventListener("input", () => {
+      updateDirtyBadge();
+      renderOpenTabHosts();
+    });
+    els.openUrl.addEventListener("input", updateDirtyBadge);
+    els.forceUrl.addEventListener("input", updateForceUrlWarning);
+    // Redirect and Edit are exclusive: Edit blocks the SDK that Redirect
+    // would replace, so both on meant Redirect silently did nothing.
+    els.forceEnabled.addEventListener("change", () => {
+      if (els.forceEnabled.checked && els.localEnabled.checked) {
+        els.localEnabled.checked = false;
+        setStatus("Edit SDK turned off: only one of Redirect and Edit can be on.", "warn");
+      }
+      updateDirtyBadge();
+    });
+    els.localEnabled.addEventListener("change", () => {
+      if (els.localEnabled.checked && els.forceEnabled.checked) {
+        els.forceEnabled.checked = false;
+        updateRedirectEmpty();
+        setStatus("Redirect turned off: only one of Redirect and Edit can be on.", "warn");
+      }
+      updateDirtyBadge();
     });
     document.getElementById("BtnOpenExplorer").addEventListener("click", () => {
       chrome.tabs.create({ url: chrome.runtime.getURL("fullscreen.html") });
@@ -507,7 +600,9 @@
     try {
       const res = await sendMessage({ type: "MCP_GET_SETTINGS" });
       if (res.ok) applySettings(res.settings);
-      setMode("redirect");
+      setMode(res.ok && res.settings.localEdit.enabled && !res.settings.forceSdk.enabled ? "edit" : "redirect");
+      renderOpenTabHosts();
+      prefillOpenUrl();
       if (res.settings?.localEdit?.edited) {
         setStatus("Draft restored from saved settings.", "ok");
       } else {

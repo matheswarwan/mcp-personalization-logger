@@ -39,10 +39,17 @@ The event details panel also has **Copy for agent** for the selected event, plus
 
 ## SDK Tools
 
-Open **SDK Tools** from the popup to:
+Open **SDK Tools** from the popup or the Event Explorer.
 
-1. **Force SDK URL:** redirect `evergage.min.js` / `c360a.min.js` CDN requests to a URL you choose.
-2. **Local Edit:** load an SDK JS file, edit it, inject the edited script into pages, download it, and compare it with the original.
+**Sites:** both tools only apply on the sites you list (subdomains included, so `example.com` covers `www.example.com`; `*` means every site). Every other site loads the SDK normally. Chips under the box add sites from your open tabs.
+
+**Redirect SDK:** requests the listed sites make for `evergage(.min).js` on `cdn.evgnet.com` or `c360a(.min).js` on `cdn.c360a.salesforce.com`, over http or https, go to the URL you enter. The replacement can be http or https. Chrome blocks an http script on an https page (mixed content) unless it comes from `localhost` or `127.0.0.1`; for any other http URL on an https site, use Edit SDK with Load from URL instead. Reload the site with the cache off after saving.
+
+**Edit SDK:** load an SDK from a URL or a file, edit it, and compare it with the original or download it. Enter the **Page to open** and click **Inject and open**: the edited SDK is saved, injection is turned on, the page's site is added to Sites if needed, and the page opens in a new tab with the CDN SDK blocked and your copy injected instead. Injection then continues on every page load on the listed sites until you turn it off.
+
+Only one of Redirect and Edit can be on at a time (Edit blocks the SDK that Redirect would replace).
+
+The edited copy is injected when the page starts loading, but it can still run after the page's own inline scripts, so code that calls the SDK straight after its script tag may run before it exists.
 
 ## Development
 
