@@ -24,6 +24,7 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude 'data-gen/' \
     --exclude 'devNotes/' \
     --exclude 'gitImages/' \
+    --exclude 'docs/' \
     --exclude '.DS_Store' \
     --exclude '**/.DS_Store' \
     --exclude 'node_modules/' \
@@ -33,7 +34,7 @@ else
   # Fallback without rsync
   cp -a "$ROOT/." "$STAGE/"
   rm -rf "$STAGE/.git" "$STAGE/tests" "$STAGE/dist" "$STAGE/data-gen" \
-    "$STAGE/devNotes" "$STAGE/gitImages" "$STAGE/node_modules" \
+    "$STAGE/devNotes" "$STAGE/gitImages" "$STAGE/docs" "$STAGE/node_modules" \
     "$STAGE/package.sh" "$STAGE/.gitignore"
   find "$STAGE" -name '.DS_Store' -delete
 fi

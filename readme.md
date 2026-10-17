@@ -60,4 +60,5 @@ An edited file over 1,400 KB is too large to serve that way. Then the CDN SDK is
 
 - Unit tests for the export code: `cd tests && npm test` (Node's built-in test runner, no install needed).
 - Browser smoke test (loads the unpacked extension in Chrome with Puppeteer): `cd tests && npm install && npm run test:smoke`. Optional environment variables: `CHROME_PATH` (a local Chrome or Chromium), `HEADLESS=1`, and `CHROME_ARGS` (for example `--no-sandbox` where the sandbox is unavailable).
+- Chrome Web Store privacy text (permission justifications): `docs/chrome-web-store.md`.
 - Package a release: `./package.sh` writes `dist/interaction-studio-mcp-logger-v<version>.zip`, without tests and dev files.
