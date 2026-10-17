@@ -4,205 +4,159 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SDK Tools - MCP Logger</title>
+    <link rel="stylesheet" href="./css/theme.css" />
     <link rel="stylesheet" href="./css/settings.css" />
   </head>
   <body>
-    <div class="st-shell">
-      <header class="st-header">
-        <div>
-          <h1>
-            SDK Tools
-            <span class="st-dirty" id="dirtyBadge">Unsaved settings</span>
-          </h1>
-          <p>
-            Redirect or edit Salesforce SDK scripts while testing Data Cloud
-            behavior.
-          </p>
-        </div>
-        <div class="st-actions">
-          <button class="st-btn" id="BtnOpenExplorer" type="button">
-            Event Explorer
-          </button>
-          <button class="st-btn st-btn-primary" id="BtnSaveAll" type="button">
-            Save settings
-          </button>
-        </div>
-      </header>
+    <header class="app-bar">
+      <div class="app-brand">
+        <img src="./images/cloud/cloud-32.png" alt="" />
+        MCP Logger
+      </div>
+      <nav class="app-nav" aria-label="Pages">
+        <a href="fullscreen.html" id="BtnOpenExplorer">Events</a>
+        <a href="settings.html" aria-current="page">SDK Tools</a>
+      </nav>
+    </header>
 
-      <section class="st-panel active st-sites" aria-labelledby="sitesTitle">
-        <h2 class="st-panel-title" id="sitesTitle">Sites</h2>
-        <p class="st-panel-desc">
-          Redirect and Edit only apply on these sites. Other sites load the
-          SDK normally.
+    <main class="st-page">
+      <div class="st-intro">
+        <h1>SDK Tools</h1>
+        <p>
+          Swap or edit the Marketing Cloud Personalization and Data Cloud SDK on
+          chosen sites while you test.
         </p>
-        <div class="st-field">
-          <label class="st-label" for="sitesInput">Only on these sites</label>
+      </div>
+
+      <!-- Hidden state the script reads; the Mode control sets them. -->
+      <input type="checkbox" id="forceEnabled" hidden />
+      <input type="checkbox" id="localEnabled" hidden />
+
+      <section class="st-row">
+        <div class="st-row-label">
+          <h2>Mode</h2>
+          <p>Only one tool runs at a time.</p>
+        </div>
+        <div class="st-row-body">
+          <div class="seg st-mode" role="radiogroup" aria-label="SDK tool mode">
+            <button type="button" role="radio" id="ModeOff" data-mode="off">Off</button>
+            <button type="button" role="radio" id="TabRedirect" data-mode="redirect">Redirect SDK</button>
+            <button type="button" role="radio" id="TabEdit" data-mode="edit">Edit SDK</button>
+          </div>
+          <p class="hint" id="modeHint"></p>
+        </div>
+      </section>
+
+      <section class="st-row">
+        <div class="st-row-label">
+          <h2>Sites</h2>
+          <p>The tools only apply here. Other sites load the SDK normally.</p>
+        </div>
+        <div class="st-row-body">
+          <label class="field-label" for="sitesInput">Domains</label>
           <textarea
-            class="st-input st-sites-input"
+            class="input mono"
             id="sitesInput"
             rows="2"
             spellcheck="false"
             placeholder="example.com, shop.example.ca"
           ></textarea>
-          <p class="st-help">
-            One domain per line or separated by commas. Subdomains are
-            included (<code>example.com</code> covers
-            <code>www.example.com</code>). Pasting a full URL is fine. Use
-            <code>*</code> for every site.
+          <p class="hint">
+            Comma or line separated. Subdomains are included, so
+            <code>example.com</code> covers <code>www.example.com</code>. Full
+            URLs are fine. <code>*</code> means every site.
           </p>
           <div class="st-tab-hosts" id="openTabHosts" hidden>
-            <span class="st-help">Add from open tabs:</span>
+            <span class="hint">Add from open tabs:</span>
             <span id="openTabHostList"></span>
           </div>
         </div>
       </section>
 
-      <div class="st-mode-switch" role="tablist" aria-label="SDK tool mode">
-        <button
-          type="button"
-          class="active"
-          id="TabRedirect"
-          role="tab"
-          aria-selected="true"
-          data-mode="redirect"
-        >
-          Redirect SDK
-        </button>
-        <button
-          type="button"
-          id="TabEdit"
-          role="tab"
-          aria-selected="false"
-          data-mode="edit"
-        >
-          Edit SDK
-        </button>
+      <div id="PanelOff" class="st-panel">
+        <section class="st-row">
+          <div class="st-row-label"></div>
+          <div class="st-row-body">
+            <div class="st-note">
+              Both tools are off. Every site loads the SDK from Salesforce's CDN.
+            </div>
+          </div>
+        </section>
       </div>
 
-      <!-- Redirect mode -->
-      <section
-        class="st-panel active"
-        id="PanelRedirect"
-        role="tabpanel"
-        aria-labelledby="TabRedirect"
-      >
-        <h2 class="st-panel-title">Redirect SDK requests</h2>
-        <p class="st-panel-desc">
-          Replace Salesforce SDK script requests with a specific JavaScript URL.
-        </p>
-
-        <div class="st-toggle-row">
-          <div class="st-toggle-copy">
-            <strong>Redirect Salesforce SDK requests</strong>
+      <div id="PanelRedirect" class="st-panel" role="region" aria-label="Redirect SDK" hidden>
+        <section class="st-row">
+          <div class="st-row-label">
+            <h2>Replacement</h2>
             <p>
-              When on, requests for <code>evergage.min.js</code> and
-              <code>c360a.min.js</code> (http or https) made by the sites
-              above go to the URL below. Turning this on turns off Edit SDK.
+              Requests for the SDK go here instead.
             </p>
           </div>
-          <label class="st-switch" title="Toggle redirect">
-            <input type="checkbox" id="forceEnabled" />
-            <span></span>
-          </label>
-        </div>
-
-        <div class="st-field">
-          <label class="st-label" for="forceUrl">Replacement SDK URL</label>
-          <input
-            class="st-input"
-            id="forceUrl"
-            type="url"
-            placeholder="https://example.com/path/to/sdk.js"
-          />
-          <p class="st-help">
-            A full http or https URL. https URLs and http URLs on
-            <code>localhost</code> or <code>127.0.0.1</code> are loaded
-            directly. Chrome blocks any other http script on an https page
-            (mixed content), so for those the extension fetches the file when
-            you save and serves its contents in place of the SDK.
-          </p>
-          <div class="st-fetch" id="forceFetchRow" hidden>
-            <p class="st-help" id="forceFetchStatus"></p>
-            <button class="st-btn" id="BtnRefetch" type="button">Fetch again</button>
-          </div>
-          <span class="st-chip">Matches: evergage(.min).js on cdn.evgnet.com, c360a(.min).js on cdn.c360a.salesforce.com</span>
-          <p class="st-help">
-            After saving, reload the site with the cache off (DevTools open,
-            Network: Disable cache) so the browser does not reuse a cached SDK.
-          </p>
-        </div>
-
-        <div class="st-empty" id="redirectEmpty">
-          Redirect is off. SDK requests will load normally.
-        </div>
-      </section>
-
-      <!-- Edit mode -->
-      <section
-        class="st-panel"
-        id="PanelEdit"
-        role="tabpanel"
-        aria-labelledby="TabEdit"
-        hidden
-      >
-        <h2 class="st-panel-title">Edit a local SDK copy</h2>
-        <p class="st-panel-desc">
-          Load a JavaScript file, make temporary edits, and run the edited
-          version on the sites above instead of the CDN SDK.
-        </p>
-
-        <div class="st-toggle-row">
-          <div class="st-toggle-copy">
-            <strong>Enable edited SDK injection</strong>
-            <p>
-              When on, the CDN SDK is blocked on the sites above and your edited
-              copy runs on every page load there. Turning this on turns off
-              Redirect.
-            </p>
-          </div>
-          <label class="st-switch" title="Toggle local edit injection">
-            <input type="checkbox" id="localEnabled" />
-            <span></span>
-          </label>
-        </div>
-
-        <div class="st-step">
-          <h3 class="st-step-title"><span>1</span>Load SDK</h3>
-          <label class="st-label" for="sdkSourceUrl">SDK source URL</label>
-          <div class="st-load-row">
+          <div class="st-row-body">
+            <label class="field-label" for="forceUrl">Replacement SDK URL</label>
             <input
-              class="st-input"
-              id="sdkSourceUrl"
+              class="input mono"
+              id="forceUrl"
               type="url"
-              placeholder="https://example.com/evergage.min.js"
+              spellcheck="false"
+              placeholder="https://localhost:8080/evergage.min.js"
             />
-            <button class="st-btn" id="BtnLoadSdk" type="button">
-              Load from URL
-            </button>
-            <button class="st-btn" id="BtnLoadFile" type="button">
-              Load from file
-            </button>
-            <input
-              id="fileInput"
-              type="file"
-              accept=".js,text/javascript,application/javascript"
-              hidden
-            />
+            <div class="st-fetch" id="forceFetchRow" hidden>
+              <p class="hint" id="forceFetchStatus"></p>
+              <button class="btn btn-sm" id="BtnRefetch" type="button">Fetch again</button>
+            </div>
+            <ul class="st-facts">
+              <li>
+                Replaces <code>evergage.min.js</code> and <code>evergage.js</code>
+                from <code>cdn.evgnet.com</code>, and <code>c360a.min.js</code>
+                from <code>cdn.c360a.salesforce.com</code>, over http or https.
+              </li>
+              <li>
+                https URLs and http URLs on <code>localhost</code> load directly.
+                Chrome blocks other http scripts on https pages, so the extension
+                fetches those when you save and serves the file itself.
+              </li>
+              <li>
+                After saving, reload the site with the cache off (DevTools open,
+                Network, Disable cache).
+              </li>
+            </ul>
           </div>
-          <p class="st-help">
-            Load from a URL or choose a local JavaScript file. The original is
-            kept for reset and comparison.
-          </p>
-          <div class="st-empty" id="editEmpty">
-            No SDK loaded yet. Load a JavaScript file to start editing.
-          </div>
-        </div>
+        </section>
+      </div>
 
-        <div class="st-step" id="StepEdit">
-          <h3 class="st-step-title"><span>2</span>Edit</h3>
-          <div class="st-editor-shell">
-            <div class="st-editor-meta">
-              <span id="metaFile"><strong>Source:</strong> None</span>
+      <div id="PanelEdit" class="st-panel" role="region" aria-label="Edit SDK" hidden>
+        <section class="st-row">
+          <div class="st-row-label">
+            <h2>Load</h2>
+            <p>The original is kept for comparison and reset.</p>
+          </div>
+          <div class="st-row-body">
+            <label class="field-label" for="sdkSourceUrl">SDK source URL</label>
+            <div class="st-inline">
+              <input
+                class="input mono"
+                id="sdkSourceUrl"
+                type="url"
+                spellcheck="false"
+                placeholder="https://cdn.evgnet.com/beacon/.../evergage.min.js"
+              />
+              <button class="btn" id="BtnLoadSdk" type="button">Load URL</button>
+              <button class="btn" id="BtnLoadFile" type="button">Load file</button>
+              <input id="fileInput" type="file" accept=".js,text/javascript,application/javascript" hidden />
+            </div>
+            <p class="hint" id="editEmpty">No SDK loaded yet.</p>
+          </div>
+        </section>
+
+        <section class="st-row st-row-wide" id="StepEdit">
+          <div class="st-row-label">
+            <h2>Edit</h2>
+            <p>Changes are saved with the settings.</p>
+          </div>
+          <div class="st-row-body">
+            <div class="st-editor-meta mono">
+              <span id="metaFile">Source: none</span>
               <span id="metaChars"></span>
               <span id="metaUpdated"></span>
               <span id="metaDirtyEdit"></span>
@@ -213,61 +167,54 @@
               spellcheck="false"
               placeholder="Load an SDK to begin editing."
             ></textarea>
-          </div>
-        </div>
-
-        <div class="st-step" id="StepUse">
-          <h3 class="st-step-title"><span>3</span>Use edited SDK</h3>
-          <label class="st-label" for="openUrl">Page to open</label>
-          <div class="st-open-row">
-            <input
-              class="st-input"
-              id="openUrl"
-              type="url"
-              placeholder="https://www.example.com/"
-            />
-            <button class="st-btn st-btn-primary" id="BtnInjectOpen" type="button">
-              Inject and open
-            </button>
-          </div>
-          <p class="st-help">
-            Saves the edited SDK, turns on injection, and opens the page in a
-            new tab. Its site is added to Sites if it is not there yet.
-          </p>
-          <div class="st-editor-actions">
-            <button class="st-btn" id="BtnCompare" type="button">
-              Compare changes
-            </button>
-            <button class="st-btn" id="BtnDownloadEdited" type="button">
-              Download edited JS
-            </button>
-            <button class="st-btn st-btn-ghost" id="BtnResetEdited" type="button">
-              Reset to original
-            </button>
-          </div>
-          <p class="st-help">
-            Download saves your edited copy as a JavaScript file.
-          </p>
-
-          <div class="st-diff" id="diffPanel">
-            <div class="st-diff-header">
-              <strong>Changes compared with original</strong>
-              <div>
-                <span id="diffStats"></span>
-                <button class="st-btn st-btn-ghost" id="BtnHideDiff" type="button">
-                  Hide comparison
-                </button>
-              </div>
+            <div class="st-inline st-tools">
+              <button class="btn btn-sm" id="BtnCompare" type="button">Compare with original</button>
+              <button class="btn btn-sm" id="BtnDownloadEdited" type="button">Download edited JS</button>
+              <button class="btn btn-sm btn-ghost" id="BtnResetEdited" type="button">Reset to original</button>
             </div>
-            <div class="st-diff-body" id="diffBody"></div>
+            <div class="st-diff" id="diffPanel">
+              <div class="st-diff-header">
+                <strong>Changes</strong>
+                <span class="mono" id="diffStats"></span>
+                <button class="btn btn-sm btn-ghost" id="BtnHideDiff" type="button">Hide</button>
+              </div>
+              <div class="st-diff-body" id="diffBody"></div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <div class="st-footer-status" id="statusLine" role="status">
-        Ready.
+        <section class="st-row" id="StepUse">
+          <div class="st-row-label">
+            <h2>Try it</h2>
+            <p>Opens the page in a new tab with your copy instead of the CDN SDK.</p>
+          </div>
+          <div class="st-row-body">
+            <label class="field-label" for="openUrl">Page to open</label>
+            <div class="st-inline">
+              <input
+                class="input mono"
+                id="openUrl"
+                type="url"
+                spellcheck="false"
+                placeholder="https://www.example.com/"
+              />
+              <button class="btn btn-primary" id="BtnInjectOpen" type="button">Inject and open</button>
+            </div>
+            <p class="hint">
+              Saves first and adds the page's site to Sites if needed. The edited
+              copy then runs on every page load on those sites until you switch
+              the mode off.
+            </p>
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
+
+    <footer class="st-savebar">
+      <div class="st-footer-status" id="statusLine" role="status">Ready.</div>
+      <span class="st-dirty" id="dirtyBadge">Unsaved changes</span>
+      <button class="btn btn-primary" id="BtnSaveAll" type="button">Save</button>
+    </footer>
 
     <script src="./js/sdk-config.js"></script>
     <script src="./js/settings.js"></script>

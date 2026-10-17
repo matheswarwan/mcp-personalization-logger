@@ -15,12 +15,12 @@
     diffStats: document.getElementById("diffStats"),
     fileInput: document.getElementById("fileInput"),
     dirtyBadge: document.getElementById("dirtyBadge"),
-    redirectEmpty: document.getElementById("redirectEmpty"),
     editEmpty: document.getElementById("editEmpty"),
+    panelOff: document.getElementById("PanelOff"),
     panelRedirect: document.getElementById("PanelRedirect"),
     panelEdit: document.getElementById("PanelEdit"),
-    tabRedirect: document.getElementById("TabRedirect"),
-    tabEdit: document.getElementById("TabEdit"),
+    modeButtons: document.querySelectorAll(".st-mode [data-mode]"),
+    modeHint: document.getElementById("modeHint"),
     stepEdit: document.getElementById("StepEdit"),
     stepUse: document.getElementById("StepUse"),
     sitesInput: document.getElementById("sitesInput"),
@@ -102,20 +102,12 @@
     els.dirtyBadge.classList.toggle("visible", dirty);
   }
 
-  function updateRedirectEmpty() {
-    els.redirectEmpty.style.display = els.forceEnabled.checked
-      ? "none"
-      : "block";
-    els.redirectEmpty.textContent = els.forceEnabled.checked
-      ? ""
-      : "Redirect is off. SDK requests will load normally.";
-  }
 
   function updateEditChrome() {
     const loaded = hasSdkLoaded();
     els.editEmpty.style.display = loaded ? "none" : "block";
-    els.stepEdit.style.opacity = loaded ? "1" : "0.55";
-    els.stepUse.style.opacity = loaded ? "1" : "0.55";
+    els.stepEdit.classList.toggle("is-disabled", !loaded);
+    els.stepUse.classList.toggle("is-disabled", !loaded);
 
     [
       "BtnInjectOpen",
@@ -127,9 +119,7 @@
       if (btn) btn.disabled = !loaded;
     });
 
-    els.metaFile.innerHTML = loadedFileName
-      ? "<strong>Source:</strong> " + escapeHtml(loadedFileName)
-      : "<strong>Source:</strong> None";
+    els.metaFile.textContent = "Source: " + (loadedFileName || "none");
 
     const len = els.sdkEditor.value.length;
     const originalLen = originalText.length;
@@ -157,19 +147,35 @@
     updateDirtyBadge();
   }
 
+  const MODE_HINTS = {
+    off: "Nothing is changed. Every site loads the SDK normally.",
+    redirect: "SDK requests from the sites below load your replacement URL instead.",
+    edit: "The CDN SDK is blocked on the sites below and your edited copy runs instead.",
+  };
+
+  /**
+   * One control for both tools: they cannot both be on, because Edit blocks
+   * the SDK request that Redirect would replace.
+   */
   function setMode(mode) {
-    activeMode = mode === "edit" ? "edit" : "redirect";
-    const isEdit = activeMode === "edit";
+    activeMode = mode === "edit" || mode === "redirect" ? mode : "off";
+    els.forceEnabled.checked = activeMode === "redirect";
+    els.localEnabled.checked = activeMode === "edit";
+    els.modeButtons.forEach((btn) =>
+      btn.setAttribute("aria-checked", String(btn.dataset.mode === activeMode))
+    );
+    els.modeHint.textContent = MODE_HINTS[activeMode];
+    els.panelOff.hidden = activeMode !== "off";
+    els.panelRedirect.hidden = activeMode !== "redirect";
+    els.panelEdit.hidden = activeMode !== "edit";
+    updateForceUrlWarning();
+    updateDirtyBadge();
+  }
 
-    els.tabRedirect.classList.toggle("active", !isEdit);
-    els.tabEdit.classList.toggle("active", isEdit);
-    els.tabRedirect.setAttribute("aria-selected", String(!isEdit));
-    els.tabEdit.setAttribute("aria-selected", String(isEdit));
-
-    els.panelRedirect.classList.toggle("active", !isEdit);
-    els.panelEdit.classList.toggle("active", isEdit);
-    els.panelRedirect.hidden = isEdit;
-    els.panelEdit.hidden = !isEdit;
+  function modeOf(settings) {
+    if (settings.localEdit.enabled) return "edit";
+    if (settings.forceSdk.enabled) return "redirect";
+    return "off";
   }
 
   function applySettings(settings) {
@@ -187,8 +193,7 @@
     loadedSourceUrl = s.localEdit.sourceUrl || "";
     updatedAt = s.localEdit.updatedAt || null;
     savedSnapshot = snapshotOf(collectSettings());
-    updateForceUrlWarning();
-    updateRedirectEmpty();
+    setMode(modeOf(s));
     updateEditChrome();
   }
 
@@ -254,7 +259,7 @@
       );
     } else {
       setStatus(
-        "Settings saved. Redirect is off. SDK requests will load normally.",
+        "Settings saved. Both tools are off; every site loads the SDK normally.",
         "ok"
       );
     }
@@ -521,9 +526,7 @@
 
     const added = addSite(target.hostname);
     updatedAt = Date.now();
-    els.localEnabled.checked = true;
-    els.forceEnabled.checked = false;
-    updateRedirectEmpty();
+    setMode("edit");
     const settings = collectSettings();
     settings.localEdit.updatedAt = updatedAt;
 
@@ -547,8 +550,9 @@
   }
 
   async function init() {
-    els.tabRedirect.addEventListener("click", () => setMode("redirect"));
-    els.tabEdit.addEventListener("click", () => setMode("edit"));
+    els.modeButtons.forEach((btn) =>
+      btn.addEventListener("click", () => setMode(btn.dataset.mode))
+    );
 
     document.getElementById("BtnSaveAll").addEventListener("click", () => {
       saveSettings().catch((e) => setStatus(String(e.message || e), "err"));
@@ -602,35 +606,8 @@
     });
     els.openUrl.addEventListener("input", updateDirtyBadge);
     els.forceUrl.addEventListener("input", updateForceUrlWarning);
-    // Redirect and Edit are exclusive: Edit blocks the SDK that Redirect
-    // would replace, so both on meant Redirect silently did nothing.
-    els.forceEnabled.addEventListener("change", () => {
-      if (els.forceEnabled.checked && els.localEnabled.checked) {
-        els.localEnabled.checked = false;
-        setStatus("Edit SDK turned off: only one of Redirect and Edit can be on.", "warn");
-      }
-      updateForceUrlWarning();
-      updateDirtyBadge();
-    });
-    els.localEnabled.addEventListener("change", () => {
-      if (els.localEnabled.checked && els.forceEnabled.checked) {
-        els.forceEnabled.checked = false;
-        updateRedirectEmpty();
-        setStatus("Redirect turned off: only one of Redirect and Edit can be on.", "warn");
-      }
-      updateDirtyBadge();
-    });
-    document.getElementById("BtnOpenExplorer").addEventListener("click", () => {
-      chrome.tabs.create({ url: chrome.runtime.getURL("fullscreen.html") });
-    });
-
     ["change", "input"].forEach((evt) => {
-      els.forceEnabled.addEventListener(evt, () => {
-        updateRedirectEmpty();
-        updateDirtyBadge();
-      });
       els.forceUrl.addEventListener(evt, updateDirtyBadge);
-      els.localEnabled.addEventListener(evt, updateDirtyBadge);
       els.sdkSourceUrl.addEventListener(evt, updateDirtyBadge);
     });
 
@@ -641,7 +618,7 @@
     try {
       const res = await sendMessage({ type: "MCP_GET_SETTINGS" });
       if (res.ok) applySettings(res.settings);
-      setMode(res.ok && res.settings.localEdit.enabled && !res.settings.forceSdk.enabled ? "edit" : "redirect");
+      setMode(res.ok ? modeOf(mergeSettings(res.settings)) : "off");
       renderOpenTabHosts();
       prefillOpenUrl();
       if (res.settings?.localEdit?.edited) {

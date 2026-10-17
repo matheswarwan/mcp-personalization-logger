@@ -3,27 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MCP Event Explorer</title>
-    <link rel="stylesheet" href="./css/bootstrap.min.css" />
-    <link rel="stylesheet" href="./css/json-viewer.css" />
+    <title>Event Explorer - MCP Logger</title>
+    <link rel="stylesheet" href="./css/theme.css" />
     <link rel="stylesheet" href="./css/fullscreen.css" />
   </head>
   <body>
-    <div class="fs-shell">
-      <header class="fs-header">
-        <div class="fs-brand">
-          <img src="./images/is_logo.png" alt="CloudKettle" />
-          <div class="fs-brand-copy">
-            <h1>MCP Event Explorer</h1>
-            <p>Interaction Studio-style time-series view of captured events</p>
-          </div>
+    <div class="ex-shell">
+      <header class="app-bar">
+        <div class="app-brand">
+          <img src="./images/cloud/cloud-32.png" alt="" />
+          MCP Logger
         </div>
-          <div class="fs-header-actions">
-          <span class="fs-stat" id="fsTotalStat">0 events</span>
-          <button class="fs-btn" id="BtnFsSdkTools" type="button">SDK Tools</button>
-          <div class="fs-export">
+        <nav class="app-nav" aria-label="Pages">
+          <a href="fullscreen.html" aria-current="page">Events</a>
+          <a href="settings.html" id="BtnFsSdkTools">SDK Tools</a>
+        </nav>
+        <div class="app-spacer"></div>
+        <div class="app-actions">
+          <span class="ex-total mono" id="fsTotalStat">0 events</span>
+          <div class="ex-export">
             <button
-              class="fs-btn fs-btn-primary"
+              class="btn btn-primary"
               id="BtnFsExport"
               type="button"
               aria-haspopup="true"
@@ -32,140 +32,101 @@
             >
               Export
             </button>
-            <div class="fs-export-menu" id="fsExportMenu" role="menu" hidden>
-              <fieldset class="fs-export-scope">
-                <legend>Events</legend>
+            <div class="menu ex-export-menu" id="fsExportMenu" role="menu" hidden>
+              <fieldset class="ex-export-scope">
+                <legend class="field-label">Events</legend>
                 <label><input type="radio" name="fsExportScope" value="view" checked /> This view (<span id="fsExportViewCount">0</span>)</label>
                 <label><input type="radio" name="fsExportScope" value="all-sites" /> All sites, same filters (<span id="fsExportAllCount">0</span>)</label>
               </fieldset>
-              <label class="fs-export-mask"><input type="checkbox" id="fsExportMask" checked /> Hide personal data (emails, names, phone, address, tokens)</label>
-              <div class="fs-export-actions">
-                <button class="fs-btn fs-btn-primary" type="button" data-export="agent" role="menuitem">
-                  Copy for agent (Markdown)
-                </button>
-                <button class="fs-btn" type="button" data-export="md" role="menuitem">
-                  Download Markdown
-                </button>
-                <button class="fs-btn" type="button" data-export="json" role="menuitem">
-                  Download JSON
-                </button>
-                <button class="fs-btn" type="button" data-export="html" role="menuitem">
-                  Download HTML report
-                </button>
+              <label class="ex-export-mask"><input type="checkbox" id="fsExportMask" checked /> Hide personal data (emails, names, phone, address, tokens)</label>
+              <div class="ex-export-actions">
+                <button class="btn btn-primary" type="button" data-export="agent" role="menuitem">Copy for agent (Markdown)</button>
+                <button class="btn" type="button" data-export="md" role="menuitem">Download Markdown</button>
+                <button class="btn" type="button" data-export="json" role="menuitem">Download JSON</button>
+                <button class="btn" type="button" data-export="html" role="menuitem">Download HTML report</button>
               </div>
-              <p class="fs-export-note">
-                Copy for agent cuts each payload at 4,000 characters so it fits in a
-                prompt. The downloads keep full payloads.
+              <p class="hint">
+                Copy for agent cuts each payload at 4,000 characters so it fits
+                in a prompt. The downloads keep full payloads.
               </p>
             </div>
           </div>
-          <button class="fs-btn" id="BtnFsRefresh" type="button">Refresh</button>
-          <button class="fs-btn fs-btn-danger" id="BtnFsClear" type="button">
-            Clear All
-          </button>
+          <button class="btn" id="BtnFsRefresh" type="button">Refresh</button>
+          <button class="btn btn-danger" id="BtnFsClear" type="button">Clear all</button>
         </div>
       </header>
 
-      <nav class="fs-tabs" id="fsSiteTabs" aria-label="Captured sites"></nav>
-
-      <section class="fs-toolbar">
-        <div class="fs-filter-group">
-          <label>Time range</label>
-          <div class="fs-chip-row" id="fsTimeChips">
-            <button class="fs-chip" type="button" data-range="15m">
-              Last 15 min
-            </button>
-            <button class="fs-chip" type="button" data-range="1h">
-              Last 1 hour
-            </button>
-            <button class="fs-chip active" type="button" data-range="24h">
-              Last 24 hours
-            </button>
-            <button class="fs-chip" type="button" data-range="today">
-              Today
-            </button>
-            <button class="fs-chip" type="button" data-range="7d">
-              Last 7 days
-            </button>
-            <button class="fs-chip" type="button" data-range="all">All</button>
-            <button class="fs-chip" type="button" data-range="custom">
-              Custom
-            </button>
-          </div>
-          <div class="fs-custom-range" id="fsCustomRange">
-            <input type="datetime-local" id="fsFrom" />
-            <input type="datetime-local" id="fsTo" />
-          </div>
-        </div>
-
-        <div class="fs-filter-group fs-search">
-          <label>Filter by action / URL</label>
+      <section class="ex-toolbar" aria-label="Filters">
+        <div class="ex-search">
           <input
+            class="input"
             id="fsSearch"
             type="search"
-            placeholder="e.g. Page View, Add To Cart, /checkout"
+            placeholder="Filter by action, URL or payload text"
+            aria-label="Filter events"
           />
+          <kbd class="ex-kbd" aria-hidden="true">/</kbd>
         </div>
-
-        <div class="fs-toolbar-meta">
-          <div id="fsFilteredStat">Showing 0 events</div>
-          <div class="fs-status" id="fsStatusChips">
-            <button class="fs-chip active" type="button" data-status="all">
-              All statuses
-            </button>
-            <button class="fs-chip" type="button" data-status="failed">
-              Failed only
-            </button>
-          </div>
-          <div class="fs-sort">
-            <button class="fs-chip active" type="button" data-sort="desc">
-              Newest first
-            </button>
-            <button class="fs-chip" type="button" data-sort="asc">
-              Oldest first
-            </button>
-          </div>
+        <div class="seg" id="fsTimeChips" role="group" aria-label="Time range">
+          <button type="button" data-range="15m">15m</button>
+          <button type="button" data-range="1h">1h</button>
+          <button type="button" data-range="24h" class="active">24h</button>
+          <button type="button" data-range="today">Today</button>
+          <button type="button" data-range="7d">7d</button>
+          <button type="button" data-range="all">All</button>
+          <button type="button" data-range="custom">Custom</button>
         </div>
+        <div class="ex-custom-range" id="fsCustomRange" hidden>
+          <input class="input" type="datetime-local" id="fsFrom" aria-label="From" />
+          <span class="ex-muted">to</span>
+          <input class="input" type="datetime-local" id="fsTo" aria-label="To" />
+        </div>
+        <div class="seg" id="fsStatusChips" role="group" aria-label="Status">
+          <button type="button" data-status="all" class="active">All statuses</button>
+          <button type="button" data-status="failed">Failed</button>
+        </div>
+        <div class="seg ex-sort" role="group" aria-label="Sort">
+          <button type="button" data-sort="desc" class="active">Newest</button>
+          <button type="button" data-sort="asc">Oldest</button>
+        </div>
+        <span class="ex-muted" id="fsFilteredStat">0 shown</span>
       </section>
 
-      <main class="fs-main">
-        <section class="fs-panel">
-          <div class="fs-panel-header">
-            <h2>Event stream</h2>
-            <span id="fsStreamSubtitle">Select a site tab to begin</span>
+      <main class="ex-main">
+        <nav class="ex-sites" id="fsSiteTabs" aria-label="Captured sites"></nav>
+
+        <section class="ex-stream" aria-labelledby="fsStreamSubtitle">
+          <div class="ex-stream-head">
+            <span class="ex-col-time">Time</span>
+            <span class="ex-col-status">Status</span>
+            <span class="ex-col-action">Action</span>
+            <span class="ex-col-page" id="fsStreamSubtitle">Page</span>
           </div>
-          <div class="fs-timeline" id="fsTimeline"></div>
+          <div class="ex-timeline" id="fsTimeline" role="listbox" aria-label="Events" tabindex="0"></div>
         </section>
 
-        <aside class="fs-panel fs-detail">
-          <div class="fs-panel-header">
-            <h2>Event details</h2>
-            <div class="fs-detail-actions">
-              <button class="fs-btn" id="BtnCopyEventAgent" type="button" title="Copy this event as Markdown for an AI agent (personal data hidden)">
-                Copy for agent
-              </button>
-              <button class="fs-btn" id="BtnDownloadJson" type="button">
-                Download JSON
-              </button>
-              <button class="fs-btn fs-btn-primary" id="BtnCopyJson" type="button">
-                Copy JSON
-              </button>
+        <aside class="ex-detail" aria-label="Event details">
+          <div class="ex-detail-head">
+            <strong id="fsDetailTitle">Event details</strong>
+            <div class="ex-detail-actions">
+              <button class="btn btn-sm" id="BtnCopyEventAgent" type="button" title="Copy this event as Markdown for an AI agent (personal data hidden)">Copy for agent</button>
+              <button class="btn btn-sm" id="BtnCopyJson" type="button">Copy JSON</button>
+              <button class="btn btn-sm" id="BtnDownloadJson" type="button">Download</button>
             </div>
           </div>
-          <div class="fs-detail-body" id="fsDetailBody">
-            <div class="fs-empty">
+          <div class="ex-detail-body" id="fsDetailBody">
+            <div class="empty">
               <strong>No event selected</strong>
-              Click an event in the stream to inspect its payload.
+              Pick an event to see its payload.
             </div>
           </div>
         </aside>
       </main>
     </div>
 
-    <script src="./js/jquery-3.6.3.js"></script>
-    <script src="./js/bootstrap.bundle.min.js"></script>
     <script src="./js/moment-with-locales.min.js"></script>
     <script src="./js/json-viewer.js"></script>
+    <script src="./js/events.js"></script>
     <script src="./js/exporters.js"></script>
     <script src="./js/fullscreen.js"></script>
   </body>

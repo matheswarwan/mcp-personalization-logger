@@ -11,25 +11,6 @@
     "48": "/images/cloud/cloud-48.png",
     "128": "/images/cloud/cloud-128.png"
   },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "css/bootstrap.min.css",
-        "css/bootstrap4-toggle.css",
-        "css/json-viewer.css",
-        "js/jquery-3.6.3.js",
-        "js/popper.min.js",
-        "js/bootstrap.bundle.min.js",
-        "js/bootstrap4-toggle.min.js",
-        "js/json-viewer.js",
-        "js/moment-with-locales.min.js",
-        "images/activeImg/cloud-48.png"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   },

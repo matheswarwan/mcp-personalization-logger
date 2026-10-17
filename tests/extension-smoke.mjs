@@ -104,11 +104,19 @@ async function seedStorage(page, data) {
 }
 
 async function run() {
+  // CHROME_PATH picks a local Chrome/Chromium; HEADLESS=1 runs without a window.
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: process.env.HEADLESS === "1",
+    executablePath: process.env.CHROME_PATH || undefined,
     pipe: true,
     enableExtensions: [EXTENSION_PATH],
-    args: ["--no-first-run", "--no-default-browser-check", "--window-size=1400,900"],
+    // CHROME_ARGS adds flags, e.g. "--no-sandbox" where the sandbox is unavailable.
+    args: [
+      "--no-first-run",
+      "--no-default-browser-check",
+      "--window-size=1400,900",
+      ...(process.env.CHROME_ARGS || "").split(/\s+/).filter(Boolean),
+    ],
   });
 
   const failures = [];
@@ -134,18 +142,16 @@ async function run() {
       const btnText = await popup.$eval("#BtnFullScreen", (el) =>
         el.textContent.trim()
       );
-      assert.strictEqual(btnText, "Full Screen");
-      pass("popup has Full Screen button");
+      assert.strictEqual(btnText, "Open Explorer");
+      pass("popup has Open Explorer button");
     } catch (e) {
-      fail("popup has Full Screen button", e);
+      fail("popup has Open Explorer button", e);
     }
 
     try {
       await popup.waitForFunction(
         () =>
-          document
-            .getElementById("accordionExample")
-            ?.textContent?.includes("shop.example.com"),
+          document.getElementById("eventList")?.textContent?.includes("shop.example.com"),
         { timeout: 5000 }
       );
       pass("popup lists seeded site");
@@ -159,19 +165,30 @@ async function run() {
     });
     await fsPage.click("#BtnFsRefresh");
     await fsPage.waitForFunction(
-      () => document.querySelectorAll(".fs-tab").length >= 2,
+      () => document.querySelectorAll(".fs-tab").length >= 3,
       { timeout: 5000 }
     );
 
     try {
       const tabCount = await fsPage.$$eval(".fs-tab", (els) => els.length);
-      assert.strictEqual(tabCount, 2);
-      pass("fullscreen shows 2 site tabs");
+      assert.strictEqual(tabCount, 3);
+      pass("explorer shows All sites plus 2 site tabs");
     } catch (e) {
-      fail("fullscreen shows 2 site tabs", e);
+      fail("explorer shows All sites plus 2 site tabs", e);
     }
 
     try {
+      await fsPage.waitForFunction(
+        () => document.querySelectorAll(".fs-event").length === 3,
+        { timeout: 5000 }
+      );
+      pass("All sites + 24h shows 3 recent events");
+    } catch (e) {
+      fail("All sites + 24h shows 3 recent events", e);
+    }
+
+    try {
+      await fsPage.click('.fs-tab[data-site^="other.example.com"]');
       await fsPage.waitForFunction(
         () => document.querySelectorAll(".fs-event").length === 1,
         { timeout: 5000 }
@@ -180,14 +197,13 @@ async function run() {
         el.textContent.trim()
       );
       assert.strictEqual(action, "Login");
-      pass("default tab shows other.example.com Login event");
+      pass("other.example.com tab shows its Login event");
     } catch (e) {
-      fail("default tab shows other.example.com Login event", e);
+      fail("other.example.com tab shows its Login event", e);
     }
 
     try {
-      const tabs = await fsPage.$$(".fs-tab");
-      await tabs[1].click();
+      await fsPage.click('.fs-tab[data-site^="shop.example.com"]');
       await fsPage.waitForFunction(
         () => document.querySelectorAll(".fs-event").length === 2,
         { timeout: 5000 }

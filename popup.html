@@ -2,299 +2,58 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CloudKettle - Interaction Studio (MCP) Logger</title>
-    <link rel="stylesheet" href="./css/bootstrap.min.css" />
-    <link rel="stylesheet" href="./css/bootstrap4-toggle.css" />
-    <link rel="stylesheet" href="./css/json-viewer.css" />
-    <script src="./js/jquery-3.6.3.js"></script>
-    <script src="./js/popper.min.js"></script>
-    <script src="./js/bootstrap.bundle.min.js"></script>
-    <script src="./js/bootstrap4-toggle.min.js"></script>
+    <title>MCP Logger</title>
+    <link rel="stylesheet" href="./css/theme.css" />
+    <link rel="stylesheet" href="./css/popup.css" />
+  </head>
+  <body>
+    <header class="app-bar">
+      <div class="app-brand">
+        <img src="./images/cloud/cloud-32.png" alt="" />
+        MCP Logger
+      </div>
+      <div class="app-spacer"></div>
+      <div class="app-actions">
+        <button class="btn" id="BtnSdkTools" type="button" title="Redirect or edit the SDK">SDK Tools</button>
+        <button class="btn btn-primary" id="BtnFullScreen" type="button" title="Open the full Event Explorer">Open Explorer</button>
+      </div>
+    </header>
+
+    <button class="pp-sdk" id="sdkStatus" type="button" hidden></button>
+
+    <div class="pp-summary">
+      <span id="summaryText">Loading...</span>
+      <div class="pp-summary-actions">
+        <button class="btn btn-sm btn-ghost" id="BtnRefresh" type="button">Refresh</button>
+        <button class="btn btn-sm btn-ghost btn-danger" id="BtnClear" type="button">Clear all</button>
+      </div>
+    </div>
+
+    <div class="pp-sites" id="siteChips" role="group" aria-label="Filter by site"></div>
+
+    <div class="pp-list" id="eventList" role="list"></div>
+
+    <details class="pp-decode" id="decodeSection">
+      <summary>Decode a base64 payload</summary>
+      <textarea
+        class="input mono"
+        id="atob"
+        rows="3"
+        spellcheck="false"
+        placeholder="Paste the event= value from a beacon URL"
+      ></textarea>
+      <div class="pp-decode-out" id="json" hidden></div>
+      <div class="pp-decode-actions" id="bd-clipboard" hidden>
+        <button class="btn btn-sm" id="BtnCopyJson" type="button">Copy JSON</button>
+        <button class="btn btn-sm" id="BtnDownloadJson" type="button">Download</button>
+      </div>
+    </details>
+
     <script src="./js/moment-with-locales.min.js"></script>
     <script src="./js/json-viewer.js"></script>
-    <style>
-      /* Tooltip related */
-      .tooltip-inner {
-        background-color: #404244;
-        /* box-shadow: 0px 0px 4px black; */
-        color: #fff;
-        width: 100%;
-        opacity: 1 !important;
-      }
-      .tooltip.bs-tooltip-right .tooltip-arrow::before {
-        border-right-color: #404244 !important;
-      }
-      .tooltip.bs-tooltip-left .tooltip-arrow::before {
-        border-left-color: #404244 !important;
-      }
-      .tooltip.bs-tooltip-bottom .tooltip-arrow::before {
-        border-bottom-color: #404244 !important;
-      }
-      .tooltip.bs-tooltip-top .tooltip-arrow::before {
-        border-top-color: #404244 !important;
-      }
-      html {
-        width: 600px;
-        background: #f5f5f5;
-      }
-      .decodedJson {
-        white-space: pre;
-        font-family: monospace;
-        color: black;
-      }
-      .ck-item-show {
-        display: block;
-      }
-      .ck-item-hide {
-        display: none;
-      }
-      .ck-decode-textarea {
-        padding-top: 10px;
-        padding-left: 10px;
-        padding-right: 10px;
-        border-radius: 5px;
-        height: 36px;
-        border-color: #cccccc;
-        color: #62798d;
-        font-size: 16px;
-        line-height: 24px;
-      }
-      *.x {
-        border: 1px solid;
-      }
-    </style>
-    <style>
-      .bd-clipboard {
-        float: right;
-        position: relative;
-        /* display: none; */
-      }
-      .btn-clipboard {
-        position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
-        z-index: 10;
-        display: block;
-        padding: 0.25rem 0.5rem;
-        font-size: 10px;
-        color: #818a91;
-        cursor: pointer;
-        background-color: transparent;
-        border: 0;
-        border-radius: 1rem;
-        margin-left: 10px;
-        margin-right: 10px;
-      }
-      .btn-clipboard:hover {
-        position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
-        z-index: 10;
-        display: block;
-        padding: 0.25rem 0.5rem;
-        font-size: 10px;
-        color: #fff;
-        background-color: #1296ca;
-        border-radius: 1rem;
-        margin-left: 10px;
-        margin-right: 10px;
-      }
-    </style>
-  </head>
-  <body class="centered-wrapper">
-    <!-- centered content to make form in center -->
-    <div
-      class="centered-content"
-      style="padding-left: 20px; padding-right: 20px"
-    >
-      <!-- Refresh and Clear All buttons starts -->
-      <div class="container-fluid" style="padding-top: 32px">
-        <div class="row align-items-center">
-          <div class="col-4">
-            <a href="https://www.cloudkettle.com/" target="_blank">
-              <img style="max-height: 40px" src="./images/is_logo.png" />
-            </a>
-          </div>
-          <div class="col-8 text-end">
-            <!-- <input
-              type="checkbox"
-              name="toggleXFrame"
-              id="toggleXFrame"
-              data-toggle="toggle"
-              data-size="sm"
-              style="background-color: #1296ca"
-            /> -->
-
-            <button
-              id="BtnSdkTools"
-              class="btn btn-outline-info fw-bold"
-              style="color: #1296ca; border-color: #1296ca; margin-right: 12px"
-              title="Force SDK URL and Local Edit"
-            >
-              SDK Tools
-            </button>
-            <button
-              id="BtnFullScreen"
-              class="btn btn-outline-info fw-bold"
-              style="color: #1296ca; border-color: #1296ca; margin-right: 12px"
-              title="Open full-screen event explorer"
-            >
-              Full Screen
-            </button>
-            <button
-              id="BtnRefresh"
-              class="btn btn-outline-info fw-bold"
-              style="color: #1296ca; border-color: #1296ca; margin-right: 12px"
-            >
-              <img
-                style="height: 14px; width: 14px"
-                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAAACXBIWXMAACE4AAAhOAFFljFgAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAP3SURBVHgBzVlNbttGFP5mSLluUTSE0gBZ8gaRgMZpd8oJ4p4g8iaF7IXdE1g+QeyFI6Ab2ydIbmB71VZZSD2BuQzQSiCaBDFMcV7eULZiyUNzKMoIP0CAxPnRN2/evHnvo0DJ4B/0vA/no9rVb+FQ+O+Llb5AieC97Hnym6jHX/3rz6UQT10UhLbAxyjyVYSJFSBkKASF3y+7/WCtHlpPtnzugRx/9rFSqjEX0R87bxsQeKYUrf7/KfLH5KamBhHAbai+6gZC4IQfnQ42Vg4xJ3Jt/f39bpMEtjGzNTkQQIjDJbhH71r1YLbR6/zpS3LObowi2pGwgLYgW+aMSR4UIIlkLFH7gqJjveg8AzOJVjtvtxXRMYoRnIWvF32/0z1+2On5NgNSiepDwhMdaAvgjsB+3NDWtSFr9FFNkg+CtmLt1tGEkJd6JBT6MdCHrExOuIuRryiuCSGfaUK4HYHj4tcojsM0HzWe+vfn0csMkvok7wzWbz3FAX9O+LM7PiSyzXZ5ntLXj0d47QjnhFI63LCo9snbtpsJ7g1aK1uYA5enOr+/s0WniD7kiS5Mpk86IxSuXBv89tMbFER1v7vLJtq0HjAbni7GqzVCAU8XQVJjuME7wn+eZ8yE6GVc883d1O/hxkofC8Rw40mbHcl6zi+HSeI5TJ4scDhs/byLnEjcKBar7NSeqV068h5fwTVYwp1MmhJCFCq5tugKF+S+hkwnwiSRB3I8Ka/cBLZmaLiT7UAeFoiEqA7KpkblYA8lQUI05eYIwheLPUBFIHUQNjWQUP+gAAToFAuCcJ2+68L1leG4S8gABTBYf9L0DnpbOEcxX11GGHKVkJrhkyL7EiIF4bgMKTyPhlXiXAakEhVSLDS8FIUcYRSYGgjyHkoEGbZ+CYwtpBooES633pgc+A/+6FrfxXeNMVEyx7w4olWUBAlRKYU5zxRiU9dPKAESov+1Hp8kasZNeB8+RdsoAa6HpyNTB87stxIJ5ytjqmbSagjMWX64JCr1d3OnfMUxFfBZ3ltL6efZCgVZ0D6vK91Cko72VY70aTkoVwHRWfXVX3OVyhoP9ru1RNjgclxLOklpbgmjUqI1oQx1I9DWTxZmAY8JOhKbPGfzJgPRHrYeZ5Y7RqKXym+2pKMJc2gjJU6lq4Io/iLpOCznkKBHnJc2siQd5aKelaSn6qM5yBZF8MO3lXqWMp0p5Fb3/27z9txJLNWxO0ZlzaaAtFKc2WebvH1FlOZpaBVQqJ3hur1ekE8aL0pYEwTtqe+WdsM8LyGQk+gV9E2lSDV5+CPYaahvJMTRiN+S5CWIIkSvgws4z+UXWERcEZCaJDBcIQQjuEG4oNvsMxV/rpQkFq7rAAAAAElFTkSuQmCC"
-              />
-              Refresh
-            </button>
-            <button
-              id="BtnClear"
-              class="btn btn-outline-info"
-              style="background-color: #1296ca; color: white"
-            >
-              Clear All
-            </button>
-          </div>
-        </div>
-      </div>
-      <!-- Refresh and Clear All buttons ends -->
-
-      <!-- Site text starts -->
-      <div class="container-fluid">
-        <div class="row">
-          <div
-            class="fw-bold text-start"
-            style="
-              font-family: Helvetica, Arial, sans-serif;
-              padding-top: 24px;
-              padding-bottom: 24px;
-            "
-          >
-            Sites Captured:
-            <span
-              title="This shows the list of sites that sent events to Evergage servers."
-              data-bs-title="This shows the list of sites that sent events to Evergage servers."
-              data-bs-toggle="tooltip"
-              data-bs-placement="right"
-            >
-              <sup>?</sup>
-            </span>
-          </div>
-        </div>
-      </div>
-      <!-- Site text ends -->
-      <!-- accordion starts -->
-      <div
-        class="container-fluid accordion"
-        id="accordionExample"
-        style="padding-bottom: 24px"
-      ></div>
-      <!-- accordion ends -->
-      <hr />
-
-      <!-- Decode text starts-->
-      <div class="container-fluid">
-        <div class="row">
-          <div
-            class="fw-bold text-start"
-            style="
-              font-family: Helvetica, Arial, sans-serif;
-              padding-top: 24px;
-              padding-bottom: 24px;
-            "
-          >
-            Decode:
-          </div>
-        </div>
-      </div>
-      <!-- Decode text ends-->
-
-      <!-- textarea starts -->
-      <div class="container-fluid">
-        <div class="row" style="padding-bottom: 32px">
-          <div class="form-floating">
-            <textarea
-              name="atob"
-              id="atob"
-              class="w-100 h-75 ck-decode-textarea"
-              style=""
-              placeholder="Enter encoded string"
-            ></textarea>
-          </div>
-        </div>
-      </div>
-      <!-- textarea ends -->
-    </div>
-
-    <!-- Json format container - starts -->
-    <div>
-      <img
-        id="jsonImg"
-        style="object-fit: cover"
-        src="./images/ui/json_preview.png"
-      />
-      <div>
-        <!-- Copy Button -->
-        <div class="bd-clipboard" id="bd-clipboard" hidden>
-          <button
-            class="btn-clipboard btn-download-json"
-            id="BtnDownloadJson"
-            type="button"
-            title="Download JSON"
-            data-bs-title="Download JSON"
-            data-bs-toggle="tooltip"
-            data-bs-placement="right"
-            style="right: 5.5rem"
-          >
-            <span>&nbsp;Download&nbsp;</span>
-          </button>
-          <button
-            class="btn-clipboard"
-            id="BtnCopyJson"
-            type="button"
-            title=""
-            data-original-title="Copy to clipboard"
-          >
-            <span
-              data-bs-title="Copy to Clipboard"
-              data-bs-toggle="tooltip"
-              data-bs-placement="right"
-              class="btn-clipboard-tooltip-span"
-            >
-              &nbsp;&nbsp;&nbsp;Copy&nbsp;&nbsp;&nbsp;
-            </span>
-          </button>
-        </div>
-        <!-- Json preview section -->
-        <div
-          class="json overflow-scroll mt-4 ps-lg-4 p-3"
-          id="json"
-          rows="1"
-          style="
-            background-color: #d9d9d9;
-            width: 100%;
-            height: 100%;
-            text-align: start;
-            background-image: url('./images/ui/json_preview.png');
-          "
-          hidden
-        ></div>
-      </div>
-    </div>
-    <!-- Json format container - ends -->
-
-    <script src="popup.js"></script>
-    <!-- <script>
-      $("#toggleXFrame").on("change", function () {
-        console.log($("#toggleXFrame"));
-      });
-    </script> -->
+    <script src="./js/sdk-config.js"></script>
+    <script src="./js/events.js"></script>
+    <script src="./popup.js"></script>
   </body>
 </html>

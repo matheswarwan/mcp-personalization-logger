@@ -4,6 +4,8 @@ A Chrome extension that logs every event a page sends to Salesforce Marketing Cl
 
 "MCP" here means Marketing Cloud Personalization, not the Model Context Protocol.
 
+<img src="gitImages/explorer.png" alt="Event Explorer: sites, event stream and event details" width="100%"/>
+
 ## Installation
 
 1. Unzip the extension (the latest build is in `dist/`).
@@ -12,17 +14,16 @@ A Chrome extension that logs every event a page sends to Salesforce Marketing Cl
 4. Click **Load unpacked** and pick the unzipped folder.
 5. Pin the extension.
 
-<img src="gitImages/1.png" width="200px" height="125px"/>
-
 ## Use
 
 1. Open a site that uses Marketing Cloud Personalization. Some examples: alc.ca, becu.org, macro.com.ar, lendingclub.com, zebra.com.
-2. When an event is recorded, the icon changes color for a moment and the event shows in the popup.
-3. Click **Full Screen** in the popup to open the Event Explorer: one tab per site, time range filters, a status filter (All statuses or Failed only), a text search and a time-ordered event stream.
+2. When an event is recorded, the icon changes color for a moment.
+3. The popup lists the latest events across all sites (filter by site with the chips). Click an event to see its payload, copy it, or open it in the Explorer. A strip at the top says when Redirect or Edit SDK is on. **Decode a base64 payload** decodes an `event=` value you paste.
+4. **Open Explorer** shows every event: sites on the left (or All sites), the event stream in the middle (time to the millisecond, status, action, page) and the selected event's details and payload on the right. Filter by text, time range and status (All or Failed), and sort newest or oldest first. Keys: `/` to search, `j`/`k` or the arrow keys to move between events, `Esc` to leave the search box.
 
-Both `GET` requests with an encoded payload and `POST` requests with form data or a raw body are supported.
+Both `GET` requests with an encoded payload and `POST` requests with form data or a raw body are supported. The pages follow the system's light or dark mode.
 
-<img src="gitImages/2.png" width="200px" height="250px"/>
+<img src="gitImages/popup.png" alt="Popup with recent events" width="320"/>
 
 ## Export
 
@@ -39,20 +40,24 @@ The event details panel also has **Copy for agent** for the selected event, plus
 
 ## SDK Tools
 
-Open **SDK Tools** from the popup or the Event Explorer.
+Open **SDK Tools** from the popup or the Explorer's top bar. Pick a **Mode** (Off, Redirect SDK or Edit SDK), list the **Sites** it applies to, and Save. Only one mode runs at a time, because Edit blocks the SDK request that Redirect would replace.
 
-**Sites:** both tools only apply on the sites you list (subdomains included, so `example.com` covers `www.example.com`; `*` means every site). Every other site loads the SDK normally. Chips under the box add sites from your open tabs.
+<img src="gitImages/sdk-tools.png" alt="SDK Tools with Redirect SDK selected" width="100%"/>
 
-**Redirect SDK:** requests the listed sites make for `evergage(.min).js` on `cdn.evgnet.com` or `c360a(.min).js` on `cdn.c360a.salesforce.com`, over http or https, go to the URL you enter. The replacement can be http or https. Chrome blocks an http script on an https page (mixed content) unless it comes from `localhost` or `127.0.0.1`; for any other http URL on an https site, use Edit SDK with Load from URL instead. Reload the site with the cache off after saving.
+**Sites:** the tools only apply on the domains you list (subdomains included, so `example.com` covers `www.example.com`; `*` means every site). Every other site loads the SDK normally. Chips under the box add sites from your open tabs.
 
-**Edit SDK:** load an SDK from a URL or a file, edit it, and compare it with the original or download it. Enter the **Page to open** and click **Inject and open**: the edited SDK is saved, injection is turned on, the page's site is added to Sites if needed, and the page opens in a new tab with the CDN SDK blocked and your copy injected instead. Injection then continues on every page load on the listed sites until you turn it off.
+**Redirect SDK:** requests the listed sites make for `evergage(.min).js` on `cdn.evgnet.com` or `c360a(.min).js` on `cdn.c360a.salesforce.com`, over http or https, go to the URL you enter instead:
 
-Only one of Redirect and Edit can be on at a time (Edit blocks the SDK that Redirect would replace).
+- An https URL, or an http URL on `localhost` or `127.0.0.1`, loads directly.
+- Chrome blocks any other http script on an https page (mixed content). For those URLs the extension fetches the file when you save and serves its contents in place of the SDK, so it still runs where the SDK tag is. Click **Fetch again** after changing the file. Files up to 1,400 KB work this way.
+- Reload the site with the cache off after saving, so the browser does not reuse a cached SDK.
 
-The edited copy is injected when the page starts loading, but it can still run after the page's own inline scripts, so code that calls the SDK straight after its script tag may run before it exists.
+**Edit SDK:** load an SDK from a URL or a file, edit it, and compare it with the original or download it. Enter the **Page to open** and click **Inject and open**: the edited SDK is saved, the page's site is added to Sites if needed, and the page opens in a new tab with the CDN SDK blocked and your copy injected instead. Injection continues on every page load on the listed sites until you switch the mode off.
+
+The edited copy is injected when the page starts loading, but it can still run after the page's own inline scripts, so code that calls the SDK straight after its script tag may run before it exists. Redirect does not have this limit.
 
 ## Development
 
 - Unit tests for the export code: `cd tests && npm test` (Node's built-in test runner, no install needed).
-- Browser smoke test (loads the unpacked extension in Chrome with Puppeteer): `cd tests && npm install && npm run test:smoke`.
+- Browser smoke test (loads the unpacked extension in Chrome with Puppeteer): `cd tests && npm install && npm run test:smoke`. Optional environment variables: `CHROME_PATH` (a local Chrome or Chromium), `HEADLESS=1`, and `CHROME_ARGS` (for example `--no-sandbox` where the sandbox is unavailable).
 - Package a release: `./package.sh` writes `dist/interaction-studio-mcp-logger-v<version>.zip`, without tests and dev files.
