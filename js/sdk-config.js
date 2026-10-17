@@ -46,6 +46,21 @@ function needsFetchedSdk(url) {
   }
 }
 
+/**
+ * Edit mode serves the edited SDK through a data: redirect (so it runs where
+ * the SDK tag is) when it fits in a URL; larger files fall back to blocking
+ * the CDN SDK and injecting the code from the content script.
+ */
+function editServedByRedirect(settings) {
+  const local = settings && settings.localEdit;
+  return !!(
+    local &&
+    local.enabled &&
+    local.edited &&
+    local.edited.length <= MAX_FETCHED_SDK_CHARS
+  );
+}
+
 function toBase64Utf8(text) {
   const bytes = new TextEncoder().encode(String(text));
   let binary = "";
@@ -164,8 +179,22 @@ function buildSdkDnrRules(settings) {
   const localOn = !!(settings.localEdit && settings.localEdit.enabled && settings.localEdit.edited);
   const forceOn = !!(settings.forceSdk && settings.forceSdk.enabled && settings.forceSdk.url);
 
-  if (localOn) {
-    // Block CDN SDK so the locally edited script is the one that runs.
+  if (localOn && editServedByRedirect(settings)) {
+    const dataUrl = "data:text/javascript;base64," + toBase64Utf8(settings.localEdit.edited);
+    SDK_SCRIPT_REGEXES.forEach((regexFilter, i) => {
+      addRules.push({
+        id: DNR_RULE_ID_FORCE + i,
+        priority: 50,
+        action: { type: "redirect", redirect: { url: dataUrl } },
+        condition: {
+          regexFilter,
+          resourceTypes: ["script"],
+          ...scope,
+        },
+      });
+    });
+  } else if (localOn) {
+    // Too large for a data: URL: block the CDN SDK and inject instead.
     SDK_SCRIPT_REGEXES.forEach((regexFilter, i) => {
       addRules.push({
         id: DNR_RULE_ID_BLOCK_BASE + i,
@@ -258,6 +287,7 @@ if (typeof globalThis !== "undefined") {
   globalThis.siteMatches = siteMatches;
   globalThis.isLocalHost = isLocalHost;
   globalThis.needsFetchedSdk = needsFetchedSdk;
+  globalThis.editServedByRedirect = editServedByRedirect;
   globalThis.toBase64Utf8 = toBase64Utf8;
   globalThis.MAX_FETCHED_SDK_CHARS = MAX_FETCHED_SDK_CHARS;
   globalThis.mergeSettings = mergeSettings;

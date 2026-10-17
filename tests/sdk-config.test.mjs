@@ -81,16 +81,32 @@ test("invalid or non-http redirect URL adds nothing", () => {
   });
 });
 
-test("edit mode blocks the CDN SDK on the sites only", () => {
+test("edit mode serves the edited SDK as a data: URL on the sites only", () => {
   const r = buildSdkDnrRules(
     mergeSettings({
       sites: ["a.com", "b.org"],
       forceSdk: { enabled: true, url: "https://x.com/sdk.js" },
-      localEdit: { enabled: true, edited: "console.log(1)" },
+      localEdit: { enabled: true, edited: 'window.x="é";' },
     })
   );
+  assert.equal(r.addRules.length, 2);
+  r.addRules.forEach((x) => {
+    assert.equal(x.action.type, "redirect");
+    assert.deepEqual(x.condition.initiatorDomains, ["a.com", "b.org"]);
+    const u = x.action.redirect.url;
+    assert.ok(u.startsWith("data:text/javascript;base64,"));
+    assert.equal(Buffer.from(u.split(",")[1], "base64").toString("utf8"), 'window.x="é";');
+  });
+  assert.equal(globalThis.editServedByRedirect(mergeSettings({ localEdit: { enabled: true, edited: "x" } })), true);
+});
+
+test("edit mode falls back to block and inject when the file is too large", () => {
+  const big = "x".repeat(globalThis.MAX_FETCHED_SDK_CHARS + 1);
+  const settings = mergeSettings({ sites: ["a.com"], localEdit: { enabled: true, edited: big } });
+  assert.equal(globalThis.editServedByRedirect(settings), false);
+  const r = buildSdkDnrRules(settings);
+  assert.ok(r.addRules.length > 0);
   assert.ok(r.addRules.every((x) => x.action.type === "block"));
-  assert.deepEqual(r.addRules[0].condition.initiatorDomains, ["a.com", "b.org"]);
 });
 
 test("needsFetchedSdk: only http URLs that are not on localhost", () => {

@@ -317,6 +317,10 @@ async function injectLocalSdk(tabId, pageUrl) {
   if (!siteMatches(settings.sites, hostname)) {
     return { injected: false, reason: "site-not-listed" };
   }
+  if (editServedByRedirect(settings)) {
+    // The SDK request itself is redirected to the edited code.
+    return { injected: false, reason: "served-by-redirect" };
+  }
 
   const code = settings.localEdit.edited;
   await chrome.scripting.executeScript({

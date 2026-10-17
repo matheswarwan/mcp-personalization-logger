@@ -150,7 +150,7 @@
   const MODE_HINTS = {
     off: "Nothing is changed. Every site loads the SDK normally.",
     redirect: "SDK requests from the sites below load your replacement URL instead.",
-    edit: "The CDN SDK is blocked on the sites below and your edited copy runs instead.",
+    edit: "When the sites below load the SDK, your edited copy runs in its place.",
   };
 
   /**
