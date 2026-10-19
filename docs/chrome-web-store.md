@@ -30,7 +30,7 @@ Reads requests the page sends to Marketing Cloud Personalization (evergage.com/a
 
 ### storage, unlimitedStorage
 
-Captured events and SDK Tools settings are kept in chrome.storage.local on the device so the developer can review them in the popup and Event Explorer. unlimitedStorage prevents long test sessions from hitting the default quota. Nothing is sent off the device.
+Captured events and SDK Tools settings are kept in chrome.storage.local on the device so the developer can review them in the popup and Event Explorer. The extension also keeps short notes on the last 15 page loads where SDK Tools was on (what it did there), for the Feedback page. unlimitedStorage prevents long test sessions from hitting the default quota. Nothing is sent off the device except a feedback report the developer chooses to send.
 
 ### Host permission (<all_urls>)
 
@@ -42,4 +42,6 @@ No remote code is executed as part of the extension. Developers can choose to re
 
 ## Data usage
 
-The extension does not collect or transmit user data. Captured events and settings stay in the browser's local extension storage until the developer clears them.
+Captured events and settings stay in the browser's local extension storage until the developer clears them. The only data sent anywhere is a feedback report, and only when the developer fills in the Feedback page and clicks Send: their message, an optional email address, and (unless they untick it) technical details shown in full on the page before sending: extension version, browser user agent, SDK Tools settings (site names, SDK URLs, file sizes, no SDK code), the extension's active rules, and notes from recent page loads with SDK Tools on (page address without query string). Captured event payloads are never sent. Reports go to the developer's feedback endpoint on Cloudflare Workers and are used only to fix problems and plan features.
+
+For the "Data usage" form: tick "Website content" and "Personally identifiable information" (only if the user types an email into Feedback); certify that data is not sold, not used for unrelated purposes, and not used for creditworthiness.

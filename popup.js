@@ -168,6 +168,7 @@
 
   document.getElementById("BtnFullScreen").addEventListener("click", () => openPage("fullscreen.html"));
   document.getElementById("BtnSdkTools").addEventListener("click", () => openPage("settings.html"));
+  document.getElementById("BtnFeedback").addEventListener("click", () => openPage("feedback.html?from=popup"));
   els.sdk.addEventListener("click", () => openPage("settings.html"));
   document.getElementById("BtnSdkStop").addEventListener("click", () => {
     chrome.runtime.sendMessage({ type: "MCP_STOP_SDK_TOOLS", reload: true }, () => renderSdkStatus());

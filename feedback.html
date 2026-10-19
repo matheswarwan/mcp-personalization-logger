@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Feedback - MCP Logger</title>
+    <link rel="stylesheet" href="./css/theme.css" />
+    <link rel="stylesheet" href="./css/settings.css" />
+  </head>
+  <body>
+    <header class="app-bar">
+      <div class="app-brand">
+        <img src="./images/cloud/cloud-32.png" alt="" />
+        MCP Logger
+      </div>
+      <nav class="app-nav" aria-label="Pages">
+        <a href="fullscreen.html">Events</a>
+        <a href="settings.html">SDK Tools</a>
+        <a href="feedback.html" aria-current="page">Feedback</a>
+      </nav>
+    </header>
+
+    <main class="st-page">
+      <div class="st-intro">
+        <h1>Feedback</h1>
+        <p>
+          Report a problem or suggest something. With technical details on, the
+          report includes what SDK Tools did on recent page loads, so there is
+          no need to copy console logs.
+        </p>
+      </div>
+
+      <form id="fbForm" novalidate>
+        <section class="st-row">
+          <div class="st-row-label">
+            <h2>Type</h2>
+          </div>
+          <div class="st-row-body">
+            <div class="seg" id="fbKind" role="radiogroup" aria-label="Feedback type">
+              <button type="button" role="radio" data-kind="problem" aria-checked="true">Problem</button>
+              <button type="button" role="radio" data-kind="idea" aria-checked="false">Idea</button>
+              <button type="button" role="radio" data-kind="question" aria-checked="false">Question</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="st-row">
+          <div class="st-row-label">
+            <h2>Message</h2>
+            <p>What happened, or what you'd like.</p>
+          </div>
+          <div class="st-row-body">
+            <label class="field-label" for="fbMessage">Summary</label>
+            <textarea class="input" id="fbMessage" rows="3" maxlength="2000" required></textarea>
+            <label class="field-label fb-gap" for="fbDetails">Steps or more detail (optional)</label>
+            <textarea class="input" id="fbDetails" rows="5" maxlength="5000"></textarea>
+            <label class="field-label fb-gap" for="fbEmail">Email for a reply (optional)</label>
+            <input class="input" id="fbEmail" type="email" maxlength="200" autocomplete="email" />
+          </div>
+        </section>
+
+        <section class="st-row">
+          <div class="st-row-label">
+            <h2>Technical details</h2>
+            <p>Shown below exactly as sent.</p>
+          </div>
+          <div class="st-row-body">
+            <label class="st-wrap"><input type="checkbox" id="fbIncludeMeta" checked /> Include technical details (recommended)</label>
+            <p class="hint">
+              Extension version, browser, SDK Tools settings (sites, URLs, file
+              sizes and ids, not your SDK code), the extension's active rules,
+              and notes from the last 15 page loads with SDK Tools on (page
+              address without query string). No captured event payloads.
+            </p>
+            <div class="st-inline st-tools">
+              <button class="btn btn-sm" id="fbCopyMeta" type="button">Copy technical details</button>
+              <button class="btn btn-sm btn-ghost" id="fbRefreshMeta" type="button">Refresh</button>
+            </div>
+            <pre class="st-meta-preview mono" id="fbMeta">Loading...</pre>
+          </div>
+        </section>
+      </form>
+    </main>
+
+    <footer class="st-savebar">
+      <div class="st-footer-status" id="fbStatus" role="status">Ready.</div>
+      <button class="btn btn-primary" id="fbSend" type="button">Send feedback</button>
+    </footer>
+
+    <script src="./js/sdk-config.js"></script>
+    <script src="./js/events.js"></script>
+    <script src="./js/feedback.js"></script>
+  </body>
+</html>

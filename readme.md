@@ -66,6 +66,12 @@ Open **SDK Tools** from the popup or the Explorer's top bar. Pick a **Mode** (Of
 
 An edited file over 1,400 KB is too large to serve that way. Then the CDN SDK is blocked and your copy is injected when the page starts loading instead; it can run after the page's own inline scripts, and a CSP set in a `<meta>` tag can block it.
 
+## Feedback
+
+**Feedback** (in the popup, Events and SDK Tools) sends a message to the developer. With **Include technical details** on (the default), it adds the extension version, browser, SDK Tools settings (sites, URLs, file sizes and ids, not your SDK code), the extension's active rules, and what SDK Tools did on the last 15 page loads where it was on. The page shows all of it before you send, and **Copy technical details** copies it. No captured event payloads are sent.
+
+While SDK Tools is on, the extension keeps those page notes itself, so there is no need to copy console logs. The same notes appear in the site's console (DevTools, Console, filter for `MCP Logger`).
+
 ## Development
 
 - Unit tests for the export code: `cd tests && npm test` (Node's built-in test runner, no install needed).

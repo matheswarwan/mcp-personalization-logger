@@ -310,7 +310,9 @@ function pageSdkStatus(settings, hostname) {
   const local = settings.localEdit;
   const force = settings.forceSdk;
   const mode = local.enabled && local.edited ? "edit" : force.enabled && force.url ? "redirect" : "off";
-  if (mode === "off" || !siteMatches(settings.sites, hostname)) return { mode: "off" };
+  if (mode === "off") return { mode: "off" };
+  // On, but not here: the content script notes it if the page loads the SDK.
+  if (!siteMatches(settings.sites, hostname)) return { mode: "off", unlisted: mode };
   if (mode === "edit") {
     return {
       mode,
@@ -327,6 +329,25 @@ function pageSdkStatus(settings, hostname) {
     fetchError: fetched && fetched.error ? fetched.error : "",
     id: fetched && fetched.code ? sdkFingerprint(fetched.code) : "",
   };
+}
+
+/* Page diagnostics: what SDK Tools did on recent page loads, for Feedback. */
+const MCP_DIAG_KEY = "__mcp_diag__";
+const MAX_DIAG_REPORTS = 15;
+let diagWrite = Promise.resolve();
+
+function saveDiagReport(report, tab) {
+  // Serialize writes: a page can send several updates in quick succession.
+  diagWrite = diagWrite.then(async () => {
+    const items = await chrome.storage.local.get(MCP_DIAG_KEY);
+    const list = Array.isArray(items[MCP_DIAG_KEY]) ? items[MCP_DIAG_KEY] : [];
+    const entry = { ...report, tabId: tab ? tab.id : null, receivedAt: Date.now() };
+    const i = list.findIndex((r) => r.reportId === report.reportId);
+    if (i >= 0) list[i] = entry;
+    else list.unshift(entry);
+    await chrome.storage.local.set({ [MCP_DIAG_KEY]: list.slice(0, MAX_DIAG_REPORTS) });
+  }).catch((e) => console.warn("Could not save page diagnostics", e));
+  return diagWrite;
 }
 
 async function injectLocalSdk(tabId, pageUrl) {
@@ -431,6 +452,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch((err) =>
         sendResponse({ ok: false, error: String(err && err.message ? err.message : err) })
       );
+    return true;
+  }
+
+  if (type === "MCP_PAGE_DIAG") {
+    const report = message.report && typeof message.report === "object" ? message.report : null;
+    if (!report || !report.reportId) return false;
+    saveDiagReport(report, sender.tab).then(() => sendResponse({ ok: true }));
     return true;
   }
 

@@ -700,6 +700,8 @@
     let reloadTimer = null;
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local") return;
+      // Settings and page diagnostics (__mcp_*) don't change the event list.
+      if (Object.keys(changes).every((k) => k.indexOf("__mcp_") === 0)) return;
       // New events arrive in bursts; redraw at most every 300 ms.
       clearTimeout(reloadTimer);
       reloadTimer = setTimeout(loadAndRender, 300);
