@@ -56,6 +56,10 @@ Open **SDK Tools** from the popup or the Explorer's top bar. Pick a **Mode** (Of
 
 **Edit SDK:** load an SDK from a URL or a file, edit it, and compare it with the original or download it. Enter the **Page to open** and click **Inject and open**: the edited SDK is saved, the page's site is added to Sites if needed, and the page opens in a new tab. On the listed sites, the SDK request is answered with your edited copy, so it runs exactly where the SDK tag is, until you switch the mode off. Pages that never load the SDK are left alone.
 
+**Editor:** the Edit box is [Ace](https://ace.c9.io/) (bundled in `vendor/ace`, BSD licence): JavaScript highlighting, search (Ctrl+F or Cmd+F), go to line (Ctrl+L), and a syntax check. A syntax error shows above the editor (click it to jump there), and Save or Inject and open asks first, because one syntax error stops the whole SDK from running.
+
+**Console:** while a mode is on, the site's console says so when the page starts loading. The code served in place of the SDK starts by logging "This page is running your edited SDK", with the save time and an id; SDK Tools shows the same id after Save, so you can tell which save is running. If the replacement was blocked (for example by a CSP in a `<meta>` tag) or did not run although the page has the SDK tag, the console says that too. In DevTools the served file is named `mcp-sdk-tools/edited-sdk.js`.
+
 **Stop:** while a mode is on, **Stop and reload** (in the SDK Tools save bar) or **Stop** (in the popup's SDK strip) switches it off and reloads the open tabs on the listed sites, so they load the real SDK again. Your edited SDK, replacement URL and sites are kept for next time.
 
 An edited file over 1,400 KB is too large to serve that way. Then the CDN SDK is blocked and your copy is injected when the page starts loading instead; it can run after the page's own inline scripts, and a CSP set in a `<meta>` tag can block it.

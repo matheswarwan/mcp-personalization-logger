@@ -160,14 +160,11 @@
               <span id="metaChars"></span>
               <span id="metaUpdated"></span>
               <span id="metaDirtyEdit"></span>
+              <button class="st-meta-errors" id="metaErrors" type="button" hidden></button>
             </div>
-            <textarea
-              class="st-editor"
-              id="sdkEditor"
-              spellcheck="false"
-              placeholder="Load an SDK to begin editing."
-            ></textarea>
+            <div class="st-editor" id="sdkEditor"></div>
             <div class="st-inline st-tools">
+              <label class="st-wrap"><input type="checkbox" id="editorWrap" /> Wrap lines</label>
               <button class="btn btn-sm" id="BtnCompare" type="button">Compare with original</button>
               <button class="btn btn-sm" id="BtnDownloadEdited" type="button">Download edited JS</button>
               <button class="btn btn-sm btn-ghost" id="BtnResetEdited" type="button">Reset to original</button>
@@ -223,7 +220,9 @@
       <button class="btn btn-primary" id="BtnSaveAll" type="button">Save</button>
     </footer>
 
+    <script src="./vendor/ace/ace.js"></script>
     <script src="./js/sdk-config.js"></script>
+    <script src="./js/sdk-editor.js"></script>
     <script src="./js/settings.js"></script>
   </body>
 </html>

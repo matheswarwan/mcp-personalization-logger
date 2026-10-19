@@ -21,6 +21,8 @@ const DEFAULT_MCP_SETTINGS = {
     original: "",
     edited: "",
     updatedAt: null,
+    // Set by the background on every save; shown in the page's console banner.
+    savedAt: null,
     openUrl: "",
   },
 };
@@ -60,6 +62,47 @@ function editServedByRedirect(settings) {
     local.edited &&
     local.edited.length <= MAX_FETCHED_SDK_CHARS
   );
+}
+
+/** Short id (FNV-1a, 8 hex chars) so the console banner can be matched to a save. */
+function sdkFingerprint(text) {
+  const s = String(text || "");
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+/**
+ * Add a console banner to code the extension serves in place of the SDK, so
+ * the page's console shows that this session runs SDK Tools code (and which
+ * save). The banner goes on line 1, after a leading "use strict" directive,
+ * so line numbers stay the same. A sourceURL names the file in DevTools.
+ */
+function withSdkBanner(code, info) {
+  const text = String(code || "");
+  const meta = {
+    mode: info && info.mode === "redirect" ? "redirect" : "edit",
+    url: (info && info.url) || "",
+    savedAt: (info && info.savedAt) || null,
+    chars: text.length,
+    id: sdkFingerprint(text),
+  };
+  const banner =
+    "(function(m){try{window.__MCP_SDK_TOOLS__=m;" +
+    "document.documentElement&&document.documentElement.setAttribute('data-mcp-sdk-tools',m.id);" +
+    "console.info('%c MCP Logger %c This page is running '+(m.mode==='edit'?'your edited SDK':'the replacement SDK from '+m.url)+" +
+    "' (SDK Tools'+(m.savedAt?', saved '+new Date(m.savedAt).toLocaleString():'')+', '+m.chars.toLocaleString()+' chars, id '+m.id+')." +
+    " To load the real SDK again, click Stop in the extension popup.'," +
+    "'background:#0b6aa2;color:#fff;border-radius:3px;font-weight:bold','')}catch(e){}})(" +
+    JSON.stringify(meta) +
+    ");";
+  const directive = /^\s*(['"])use strict\1;?/.exec(text);
+  const at = directive ? directive[0].length : 0;
+  const name = meta.mode === "edit" ? "edited-sdk.js" : "redirected-sdk.js";
+  return text.slice(0, at) + banner + text.slice(at) + "\n//# sourceURL=mcp-sdk-tools/" + name + "\n";
 }
 
 function toBase64Utf8(text) {
@@ -181,7 +224,11 @@ function buildSdkDnrRules(settings) {
   const forceOn = !!(settings.forceSdk && settings.forceSdk.enabled && settings.forceSdk.url);
 
   if (localOn && editServedByRedirect(settings)) {
-    const dataUrl = "data:text/javascript;base64," + toBase64Utf8(settings.localEdit.edited);
+    const served = withSdkBanner(settings.localEdit.edited, {
+      mode: "edit",
+      savedAt: settings.localEdit.savedAt,
+    });
+    const dataUrl = "data:text/javascript;base64," + toBase64Utf8(served);
     SDK_SCRIPT_REGEXES.forEach((regexFilter, i) => {
       addRules.push({
         id: DNR_RULE_ID_FORCE + i,
@@ -226,7 +273,8 @@ function buildSdkDnrRules(settings) {
         // Not fetched yet (or it failed): leave the SDK alone.
         return { addRules: [], removeRuleIds };
       }
-      redirectUrl = "data:text/javascript;base64," + toBase64Utf8(fetched.code);
+      const served = withSdkBanner(fetched.code, { mode: "redirect", url: redirectUrl, savedAt: fetched.at });
+      redirectUrl = "data:text/javascript;base64," + toBase64Utf8(served);
     }
 
     SDK_SCRIPT_REGEXES.forEach((regexFilter, i) => {
@@ -309,6 +357,8 @@ if (typeof globalThis !== "undefined") {
   globalThis.needsFetchedSdk = needsFetchedSdk;
   globalThis.editServedByRedirect = editServedByRedirect;
   globalThis.toBase64Utf8 = toBase64Utf8;
+  globalThis.sdkFingerprint = sdkFingerprint;
+  globalThis.withSdkBanner = withSdkBanner;
   globalThis.MAX_FETCHED_SDK_CHARS = MAX_FETCHED_SDK_CHARS;
   globalThis.mergeSettings = mergeSettings;
   globalThis.readMcpSettings = readMcpSettings;

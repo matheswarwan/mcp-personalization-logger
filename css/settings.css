@@ -147,23 +147,61 @@ body {
 }
 
 .st-editor {
-  display: block;
-  width: 100%;
-  min-height: 280px;
-  padding: 10px;
+  position: relative;
+  height: 480px;
+  min-height: 200px;
   border: 1px solid var(--border-strong);
   border-radius: 0 0 var(--radius) var(--radius);
+  overflow: hidden;
+  resize: vertical;
+}
+
+.st-editor:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.st-editor .ace_editor {
+  position: absolute;
+  inset: 0;
+  font-family: var(--mono);
+}
+
+.st-editor-fallback {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 10px;
+  border: 0;
   background: var(--bg);
   color: var(--text);
   font: 12px/1.5 var(--mono);
-  resize: vertical;
+  resize: none;
   tab-size: 2;
 }
 
-.st-editor:focus {
+.st-editor-fallback:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.st-meta-errors {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--err);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.st-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .st-tools {

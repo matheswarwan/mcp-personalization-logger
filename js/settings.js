@@ -4,7 +4,8 @@
     forceUrl: document.getElementById("forceUrl"),
     localEnabled: document.getElementById("localEnabled"),
     sdkSourceUrl: document.getElementById("sdkSourceUrl"),
-    sdkEditor: document.getElementById("sdkEditor"),
+    sdkEditor: createSdkEditor(document.getElementById("sdkEditor")),
+    metaErrors: document.getElementById("metaErrors"),
     statusLine: document.getElementById("statusLine"),
     metaFile: document.getElementById("metaFile"),
     metaChars: document.getElementById("metaChars"),
@@ -127,7 +128,9 @@
       ? "Original size: " +
         originalLen.toLocaleString() +
         " · Edited size: " +
-        len.toLocaleString()
+        len.toLocaleString() +
+        " · id " +
+        sdkFingerprint(els.sdkEditor.value)
       : "";
 
     els.metaUpdated.textContent = updatedAt
@@ -206,8 +209,34 @@
       .replace(/>/g, "&gt;");
   }
 
+  function describeError(err) {
+    return "line " + err.line + ": " + err.text;
+  }
+
+  function renderSyntaxErrors(errors) {
+    const first = errors[0];
+    els.metaErrors.hidden = !first;
+    if (!first) return;
+    els.metaErrors.textContent =
+      (errors.length === 1 ? "Syntax error on " : errors.length + " syntax errors, first on ") +
+      describeError(first);
+    els.metaErrors.title = "Go to line " + first.line;
+  }
+
+  /** A syntax error stops the whole SDK from running, so ask first. */
+  function confirmNoSyntaxErrors() {
+    const first = els.sdkEditor.errors()[0];
+    if (!first) return true;
+    return window.confirm(
+      "The edited SDK has a syntax error (" +
+        describeError(first) +
+        "). The browser will not run any of it, so the page gets no SDK. Use it anyway?"
+    );
+  }
+
   async function saveSettings() {
     const settings = collectSettings();
+    if (settings.localEdit.enabled && !confirmNoSyntaxErrors()) return;
 
     if ((settings.forceSdk.enabled || settings.localEdit.enabled) && !settings.sites.length) {
       setStatus("Add at least one site under Sites (or * for every site).", "err");
@@ -256,7 +285,9 @@
       setStatus("Settings saved. Redirect is on for " + where + ". Reload those pages.", "ok");
     } else if (res.settings.localEdit.enabled) {
       setStatus(
-        "Settings saved. The edited SDK runs on " + where + " on page load.",
+        "Settings saved. The edited SDK (id " +
+          sdkFingerprint(res.settings.localEdit.edited) +
+          ") runs on " + where + ". Reload those pages; the console shows the id that ran.",
         "ok"
       );
     } else {
@@ -540,6 +571,7 @@
       return;
     }
 
+    if (!confirmNoSyntaxErrors()) return;
     const added = addSite(target.hostname);
     updatedAt = Date.now();
     setMode("edit");
@@ -559,7 +591,9 @@
     setStatus(
       "Opened " +
         target.hostname +
-        " with the edited SDK." +
+        " with the edited SDK (id " +
+        sdkFingerprint(saved.settings.localEdit.edited) +
+        "; the page's console shows it)." +
         (added ? " Added " + target.hostname.replace(/^www\./, "") + " to Sites." : ""),
       "ok"
     );
@@ -633,6 +667,17 @@
     els.sdkEditor.addEventListener("input", () => {
       updateEditChrome();
     });
+    els.sdkEditor.addEventListener("errors", renderSyntaxErrors);
+    els.metaErrors.addEventListener("click", () => {
+      const first = els.sdkEditor.errors()[0];
+      if (first) els.sdkEditor.gotoLine(first.line, first.column);
+    });
+    const wrap = document.getElementById("editorWrap");
+    if (els.sdkEditor.setWrap) {
+      wrap.addEventListener("change", () => els.sdkEditor.setWrap(wrap.checked));
+    } else {
+      wrap.parentElement.hidden = true;
+    }
 
     try {
       const res = await sendMessage({ type: "MCP_GET_SETTINGS" });

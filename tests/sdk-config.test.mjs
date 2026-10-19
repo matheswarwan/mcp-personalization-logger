@@ -95,7 +95,9 @@ test("edit mode serves the edited SDK as a data: URL on the sites only", () => {
     assert.deepEqual(x.condition.initiatorDomains, ["a.com", "b.org"]);
     const u = x.action.redirect.url;
     assert.ok(u.startsWith("data:text/javascript;base64,"));
-    assert.equal(Buffer.from(u.split(",")[1], "base64").toString("utf8"), 'window.x="é";');
+    const served = Buffer.from(u.split(",")[1], "base64").toString("utf8");
+    assert.ok(served.includes('window.x="é";'));
+    assert.ok(served.includes("MCP Logger"));
   });
   assert.equal(globalThis.editServedByRedirect(mergeSettings({ localEdit: { enabled: true, edited: "x" } })), true);
 });
@@ -147,7 +149,9 @@ test("non-local http redirect serves the fetched code as a data: URL", () => {
   redirects.forEach((x) => {
     const u = x.action.redirect.url;
     assert.ok(u.startsWith("data:text/javascript;base64,"));
-    assert.equal(Buffer.from(u.split(",")[1], "base64").toString("utf8"), 'window.x="ü";');
+    const served = Buffer.from(u.split(",")[1], "base64").toString("utf8");
+    assert.ok(served.includes('window.x="ü";'));
+    assert.ok(served.includes("http://dev.example.com/sdk.js"));
   });
 });
 
@@ -164,4 +168,35 @@ test("page CSP header is removed on the listed sites only while a tool is on", (
   assert.equal(strip({ sites: ["*"], ...edit }).condition.requestDomains, undefined);
   assert.ok(strip({ sites: ["a.com"], forceSdk: { enabled: true, url: "https://localhost:8080/e.js" } }));
   assert.ok(buildSdkDnrRules(mergeSettings({ sites: ["a.com"] })).removeRuleIds.includes(91030));
+});
+
+test("withSdkBanner keeps line numbers and a leading use strict directive", () => {
+  const { withSdkBanner, sdkFingerprint } = globalThis;
+  const code = "'use strict';\nvar a = 1;\nthrow new Error('line 3');";
+  const out = withSdkBanner(code, { mode: "edit", savedAt: 1 });
+  assert.ok(out.startsWith("'use strict';(function(m){"));
+  const lines = out.split("\n");
+  assert.equal(lines[1], "var a = 1;");
+  assert.equal(lines[2], "throw new Error('line 3');");
+  assert.ok(out.includes("//# sourceURL=mcp-sdk-tools/edited-sdk.js"));
+  assert.ok(out.includes('"id":"' + sdkFingerprint(code) + '"'));
+  assert.ok(withSdkBanner("var b;", { mode: "edit" }).startsWith("(function(m){"));
+});
+
+test("banner runs, logs once and marks the page", () => {
+  const { withSdkBanner } = globalThis;
+  const logs = [];
+  const attrs = {};
+  const sandbox = {
+    window: {},
+    document: { documentElement: { setAttribute: (k, v) => (attrs[k] = v) } },
+    console: { info: (...a) => logs.push(a.join(" ")) },
+  };
+  new Function("window", "document", "console", withSdkBanner("window.ran = 1;", { mode: "edit", savedAt: Date.now() }))(
+    sandbox.window, sandbox.document, sandbox.console
+  );
+  assert.equal(sandbox.window.ran, 1);
+  assert.equal(logs.length, 1);
+  assert.match(logs[0], /running your edited SDK/);
+  assert.equal(attrs["data-mcp-sdk-tools"], sandbox.window.__MCP_SDK_TOOLS__.id);
 });

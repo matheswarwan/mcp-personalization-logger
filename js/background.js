@@ -305,24 +305,47 @@ async function withFetchedSdk(settings) {
   return settings;
 }
 
+/** What SDK Tools does on this page, for the content script's console notes. */
+function pageSdkStatus(settings, hostname) {
+  const local = settings.localEdit;
+  const force = settings.forceSdk;
+  const mode = local.enabled && local.edited ? "edit" : force.enabled && force.url ? "redirect" : "off";
+  if (mode === "off" || !siteMatches(settings.sites, hostname)) return { mode: "off" };
+  if (mode === "edit") {
+    return {
+      mode,
+      servedBy: editServedByRedirect(settings) ? "redirect" : "inject",
+      id: sdkFingerprint(local.edited),
+      savedAt: local.savedAt || null,
+    };
+  }
+  const fetched = needsFetchedSdk(force.url) ? force.fetched : null;
+  return {
+    mode,
+    url: force.url,
+    servedBy: fetched ? "fetched" : "redirect",
+    fetchError: fetched && fetched.error ? fetched.error : "",
+    id: fetched && fetched.code ? sdkFingerprint(fetched.code) : "",
+  };
+}
+
 async function injectLocalSdk(tabId, pageUrl) {
   const settings = await readMcpSettings();
-  if (!settings.localEdit.enabled || !settings.localEdit.edited) {
-    return { injected: false, reason: "disabled" };
-  }
   let hostname = "";
   try {
     hostname = new URL(pageUrl || "").hostname;
   } catch (_) {}
-  if (!siteMatches(settings.sites, hostname)) {
-    return { injected: false, reason: "site-not-listed" };
-  }
-  if (editServedByRedirect(settings)) {
-    // The SDK request itself is redirected to the edited code.
-    return { injected: false, reason: "served-by-redirect" };
+  const status = pageSdkStatus(settings, hostname);
+  if (status.mode !== "edit" || status.servedBy !== "inject") {
+    // Off, not a listed site, Redirect, or the SDK request is redirected to
+    // the edited code.
+    return { injected: false, status };
   }
 
-  const code = settings.localEdit.edited;
+  const code = withSdkBanner(settings.localEdit.edited, {
+    mode: "edit",
+    savedAt: settings.localEdit.savedAt,
+  });
   await chrome.scripting.executeScript({
     target: { tabId },
     world: "MAIN",
@@ -351,7 +374,7 @@ async function injectLocalSdk(tabId, pageUrl) {
     ],
   });
 
-  return { injected: true };
+  return { injected: true, status };
 }
 
 /**
@@ -397,7 +420,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const next =
       type === "MCP_SAVE_SETTINGS" ? Promise.resolve(message.settings) : readMcpSettings();
     next
-      .then((settings) => withFetchedSdk(mergeSettings(settings)))
+      .then((settings) => {
+        const merged = mergeSettings(settings);
+        if (type === "MCP_SAVE_SETTINGS") merged.localEdit.savedAt = Date.now();
+        return withFetchedSdk(merged);
+      })
       .then((settings) => writeMcpSettings(settings))
       .then((settings) => syncSdkDnrRules(settings).then(() => settings))
       .then((settings) => sendResponse({ ok: true, settings }))
