@@ -9,6 +9,7 @@
     summary: document.getElementById("summaryText"),
     sites: document.getElementById("siteChips"),
     sdk: document.getElementById("sdkStatus"),
+    sdkBar: document.getElementById("sdkBar"),
     atob: document.getElementById("atob"),
     decodeOut: document.getElementById("json"),
     decodeActions: document.getElementById("bd-clipboard"),
@@ -65,7 +66,7 @@
     let text = "";
     if (s.localEdit.enabled && s.localEdit.edited) text = "Edit SDK is on for " + where;
     else if (s.forceSdk.enabled && s.forceSdk.url) text = "Redirect SDK is on for " + where + " to " + s.forceSdk.url;
-    els.sdk.hidden = !text;
+    els.sdkBar.hidden = !text;
     els.sdk.textContent = text;
     els.sdk.title = text ? text + ". Click to change." : "";
   }
@@ -168,6 +169,9 @@
   document.getElementById("BtnFullScreen").addEventListener("click", () => openPage("fullscreen.html"));
   document.getElementById("BtnSdkTools").addEventListener("click", () => openPage("settings.html"));
   els.sdk.addEventListener("click", () => openPage("settings.html"));
+  document.getElementById("BtnSdkStop").addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "MCP_STOP_SDK_TOOLS", reload: true }, () => renderSdkStatus());
+  });
   document.getElementById("BtnRefresh").addEventListener("click", init);
   document.getElementById("BtnClear").addEventListener("click", () => {
     if (!window.confirm("Delete every captured event? SDK Tools settings are kept.")) return;

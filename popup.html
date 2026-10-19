@@ -20,7 +20,10 @@
       </div>
     </header>
 
-    <button class="pp-sdk" id="sdkStatus" type="button" hidden></button>
+    <div class="pp-sdk" id="sdkBar" hidden>
+      <button class="pp-sdk-text" id="sdkStatus" type="button"></button>
+      <button class="btn btn-danger btn-sm" id="BtnSdkStop" type="button" title="Switch SDK Tools off and reload open tabs on the listed sites">Stop</button>
+    </div>
 
     <div class="pp-summary">
       <span id="summaryText">Loading...</span>

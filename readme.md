@@ -56,6 +56,8 @@ Open **SDK Tools** from the popup or the Explorer's top bar. Pick a **Mode** (Of
 
 **Edit SDK:** load an SDK from a URL or a file, edit it, and compare it with the original or download it. Enter the **Page to open** and click **Inject and open**: the edited SDK is saved, the page's site is added to Sites if needed, and the page opens in a new tab. On the listed sites, the SDK request is answered with your edited copy, so it runs exactly where the SDK tag is, until you switch the mode off. Pages that never load the SDK are left alone.
 
+**Stop:** while a mode is on, **Stop and reload** (in the SDK Tools save bar) or **Stop** (in the popup's SDK strip) switches it off and reloads the open tabs on the listed sites, so they load the real SDK again. Your edited SDK, replacement URL and sites are kept for next time.
+
 An edited file over 1,400 KB is too large to serve that way. Then the CDN SDK is blocked and your copy is injected when the page starts loading instead; it can run after the page's own inline scripts, and a CSP set in a `<meta>` tag can block it.
 
 ## Development

@@ -194,6 +194,8 @@
     updatedAt = s.localEdit.updatedAt || null;
     savedSnapshot = snapshotOf(collectSettings());
     setMode(modeOf(s));
+    // Shown while a saved tool is running, whatever the draft says.
+    document.getElementById("BtnStop").hidden = modeOf(s) === "off";
     updateEditChrome();
   }
 
@@ -512,6 +514,20 @@
     if (tabs.length) els.openUrl.value = tabs[0].url;
   }
 
+  async function stopTools() {
+    const res = await sendMessage({ type: "MCP_STOP_SDK_TOOLS", reload: true });
+    if (!res.ok) {
+      setStatus(res.error || "Failed to stop", "err");
+      return;
+    }
+    applySettings(res.settings);
+    setStatus(
+      "Stopped. Every site loads the SDK normally" +
+        (res.reloaded ? "; reloaded " + res.reloaded + (res.reloaded === 1 ? " tab." : " tabs.") : "."),
+      "ok"
+    );
+  }
+
   async function injectAndOpen() {
     if (!els.sdkEditor.value) {
       setStatus("Load an SDK before injecting.", "err");
@@ -554,6 +570,9 @@
       btn.addEventListener("click", () => setMode(btn.dataset.mode))
     );
 
+    document.getElementById("BtnStop").addEventListener("click", () => {
+      stopTools().catch((e) => setStatus(String(e.message || e), "err"));
+    });
     document.getElementById("BtnSaveAll").addEventListener("click", () => {
       saveSettings().catch((e) => setStatus(String(e.message || e), "err"));
     });

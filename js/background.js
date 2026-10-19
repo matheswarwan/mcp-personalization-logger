@@ -354,6 +354,37 @@ async function injectLocalSdk(tabId, pageUrl) {
   return { injected: true };
 }
 
+/**
+ * Switch Redirect and Edit off (the edited SDK, URL and sites are kept), then
+ * optionally reload open tabs on the listed sites so they get the real SDK.
+ */
+async function stopSdkTools(reload) {
+  const current = await readMcpSettings();
+  const sites = current.sites;
+  current.forceSdk.enabled = false;
+  current.localEdit.enabled = false;
+  const settings = await writeMcpSettings(current);
+  await syncSdkDnrRules(settings);
+  let reloaded = 0;
+  if (reload && sites.length) {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      let hostname = "";
+      try {
+        const url = new URL(tab.url || "");
+        if (url.protocol === "http:" || url.protocol === "https:") hostname = url.hostname;
+      } catch (_) {}
+      if (!hostname || !siteMatches(sites, hostname)) continue;
+      try {
+        // Bypass the cache so the edited or redirected SDK is not reused.
+        await chrome.tabs.reload(tab.id, { bypassCache: true });
+        reloaded++;
+      } catch (_) {}
+    }
+  }
+  return { settings, reloaded };
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const type = message && message.type;
 
@@ -370,6 +401,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((settings) => writeMcpSettings(settings))
       .then((settings) => syncSdkDnrRules(settings).then(() => settings))
       .then((settings) => sendResponse({ ok: true, settings }))
+      .catch((err) =>
+        sendResponse({ ok: false, error: String(err && err.message ? err.message : err) })
+      );
+    return true;
+  }
+
+  if (type === "MCP_STOP_SDK_TOOLS") {
+    stopSdkTools(!!message.reload)
+      .then((result) => sendResponse({ ok: true, ...result }))
       .catch((err) =>
         sendResponse({ ok: false, error: String(err && err.message ? err.message : err) })
       );
