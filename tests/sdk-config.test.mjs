@@ -89,9 +89,9 @@ test("edit mode serves the edited SDK as a data: URL on the sites only", () => {
       localEdit: { enabled: true, edited: 'window.x="é";' },
     })
   );
-  assert.equal(r.addRules.length, 2);
-  r.addRules.forEach((x) => {
-    assert.equal(x.action.type, "redirect");
+  const redirects = r.addRules.filter((x) => x.action.type === "redirect");
+  assert.equal(redirects.length, 2);
+  redirects.forEach((x) => {
     assert.deepEqual(x.condition.initiatorDomains, ["a.com", "b.org"]);
     const u = x.action.redirect.url;
     assert.ok(u.startsWith("data:text/javascript;base64,"));
@@ -106,7 +106,7 @@ test("edit mode falls back to block and inject when the file is too large", () =
   assert.equal(globalThis.editServedByRedirect(settings), false);
   const r = buildSdkDnrRules(settings);
   assert.ok(r.addRules.length > 0);
-  assert.ok(r.addRules.every((x) => x.action.type === "block"));
+  assert.ok(r.addRules.filter((x) => x.action.type !== "modifyHeaders").every((x) => x.action.type === "block"));
 });
 
 test("needsFetchedSdk: only http URLs that are not on localhost", () => {
@@ -142,11 +142,26 @@ test("non-local http redirect serves the fetched code as a data: URL", () => {
   const r = buildSdkDnrRules(
     mergeSettings({ ...base, forceSdk: { ...base.forceSdk, fetched: { url, code: 'window.x="ü";' } } })
   );
-  assert.equal(r.addRules.length, 2);
-  r.addRules.forEach((x) => {
-    assert.equal(x.action.type, "redirect");
+  const redirects = r.addRules.filter((x) => x.action.type === "redirect");
+  assert.equal(redirects.length, 2);
+  redirects.forEach((x) => {
     const u = x.action.redirect.url;
     assert.ok(u.startsWith("data:text/javascript;base64,"));
     assert.equal(Buffer.from(u.split(",")[1], "base64").toString("utf8"), 'window.x="ü";');
   });
+});
+
+test("page CSP header is removed on the listed sites only while a tool is on", () => {
+  const strip = (settings) =>
+    buildSdkDnrRules(mergeSettings(settings)).addRules.find((x) => x.action.type === "modifyHeaders");
+  const edit = { localEdit: { enabled: true, edited: "x" } };
+  assert.equal(strip({ sites: ["a.com"] }), undefined);
+  assert.equal(strip({ ...edit }), undefined);
+  const rule = strip({ sites: ["a.com"], ...edit });
+  assert.deepEqual(rule.action.responseHeaders, [{ header: "content-security-policy", operation: "remove" }]);
+  assert.deepEqual(rule.condition.requestDomains, ["a.com"]);
+  assert.deepEqual(rule.condition.resourceTypes, ["main_frame", "sub_frame"]);
+  assert.equal(strip({ sites: ["*"], ...edit }).condition.requestDomains, undefined);
+  assert.ok(strip({ sites: ["a.com"], forceSdk: { enabled: true, url: "https://localhost:8080/e.js" } }));
+  assert.ok(buildSdkDnrRules(mergeSettings({ sites: ["a.com"] })).removeRuleIds.includes(91030));
 });

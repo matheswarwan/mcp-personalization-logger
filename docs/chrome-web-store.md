@@ -14,11 +14,11 @@ Used by the SDK Tools "Edit SDK" feature. A developer loads a copy of the Market
 
 ### declarativeNetRequest
 
-Used by SDK Tools to swap the Marketing Cloud Personalization (evergage.min.js) or Data Cloud (c360a.min.js) SDK while a developer tests. Session rules redirect the SDK script request to a URL the developer enters, or to their edited copy, or block it when the edited copy is injected instead. Rules only match those two SDK script URLs, only for requests made by sites the developer has listed, and are removed when the tool is switched off.
+Used by SDK Tools to swap the Marketing Cloud Personalization (evergage.min.js) or Data Cloud (c360a.min.js) SDK while a developer tests. Session rules redirect the SDK script request to a URL the developer enters, or to their edited copy, or block it when the edited copy is injected instead. While a tool is on, a rule also removes the Content-Security-Policy header from the listed sites' pages, because a page CSP would otherwise block the replacement SDK. Rules only match those two SDK script URLs (plus the page responses of the listed sites for the CSP header), only on sites the developer has listed, and are removed when the tool is switched off.
 
 ### declarativeNetRequestWithHostAccess
 
-Chrome requires host access for declarativeNetRequest redirect rules. The extension redirects the SDK script request (from cdn.evgnet.com or cdn.c360a.salesforce.com) to the developer's replacement or edited SDK, only on the sites the developer lists in SDK Tools. No other requests are redirected or changed.
+Chrome requires host access for declarativeNetRequest redirect rules. The extension redirects the SDK script request (from cdn.evgnet.com or cdn.c360a.salesforce.com) to the developer's replacement or edited SDK, only on the sites the developer lists in SDK Tools, and removes the Content-Security-Policy header from those sites' pages while the tool is on. No other requests are redirected or changed.
 
 ### tabs
 

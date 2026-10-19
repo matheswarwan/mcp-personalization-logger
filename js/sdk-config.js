@@ -32,6 +32,7 @@ const SDK_SCRIPT_REGEXES = [
 ];
 
 const DNR_RULE_ID_ALLOW_TARGET = 91020;
+const DNR_RULE_ID_STRIP_CSP = 91030;
 
 // Chrome caps URLs at 2 MB; base64 adds a third, so stay well below.
 const MAX_FETCHED_SDK_CHARS = 1400000;
@@ -160,7 +161,7 @@ async function writeMcpSettings(next) {
 
 function buildSdkDnrRules(settings) {
   const addRules = [];
-  const removeRuleIds = [DNR_RULE_ID_ALLOW_TARGET];
+  const removeRuleIds = [DNR_RULE_ID_ALLOW_TARGET, DNR_RULE_ID_STRIP_CSP];
   for (let i = 0; i < SDK_SCRIPT_REGEXES.length; i++) {
     removeRuleIds.push(DNR_RULE_ID_FORCE + i);
     removeRuleIds.push(DNR_RULE_ID_BLOCK_BASE + i);
@@ -253,6 +254,25 @@ function buildSdkDnrRules(settings) {
       condition: {
         urlFilter: "|" + redirectUrl + "|",
         resourceTypes: ["script"],
+      },
+    });
+  }
+
+  // A page CSP usually allows cdn.evgnet.com but not data: URLs, localhost or
+  // the replacement's host, so the redirected SDK would be blocked. While a
+  // tool is on, drop the CSP header from the listed sites' pages. A CSP set
+  // in a <meta> tag can't be removed this way.
+  if (addRules.length) {
+    addRules.push({
+      id: DNR_RULE_ID_STRIP_CSP,
+      priority: 50,
+      action: {
+        type: "modifyHeaders",
+        responseHeaders: [{ header: "content-security-policy", operation: "remove" }],
+      },
+      condition: {
+        resourceTypes: ["main_frame", "sub_frame"],
+        ...(scope.initiatorDomains ? { requestDomains: scope.initiatorDomains } : {}),
       },
     });
   }

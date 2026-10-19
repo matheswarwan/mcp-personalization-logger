@@ -333,7 +333,8 @@ async function injectLocalSdk(tabId, pageUrl) {
         }
         window.__MCP_LOCAL_SDK_INJECTED__ = true;
         window.__MCP_LOCAL_SDK_META__ = meta;
-        // executeScript MAIN-world code is not subject to page CSP.
+        // eval is subject to the page CSP; the CSP header is removed on the
+        // listed sites while Edit is on (see buildSdkDnrRules).
         (0, eval)(sdkCode);
       } catch (err) {
         console.error("[MCP Logger] Local Edit SDK injection failed", err);
