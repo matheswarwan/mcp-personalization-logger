@@ -12,6 +12,9 @@
     customFrom: null,
     customTo: null,
     selectedEventId: null,
+    // Ticked events (ids), kept across filters and site changes.
+    checked: new Set(),
+    lastCheckedId: null,
     eventsBySite: {},
     total: 0,
   };
@@ -27,6 +30,11 @@
     customRange: document.getElementById("fsCustomRange"),
     from: document.getElementById("fsFrom"),
     to: document.getElementById("fsTo"),
+    checkAll: document.getElementById("fsCheckAll"),
+    selBar: document.getElementById("fsSelBar"),
+    selCount: document.getElementById("fsSelCount"),
+    selHidden: document.getElementById("fsSelHidden"),
+    selMask: document.getElementById("fsSelMask"),
   };
 
   const { compareByTime, normalizeEvents, isFailed, siteLabel, siteDetail } = McpEvents;
@@ -151,6 +159,13 @@
 
   function renderExportCounts(viewCount) {
     document.getElementById("fsExportViewCount").textContent = String(viewCount);
+    const selected = checkedEvents().length;
+    document.getElementById("fsExportSelCount").textContent = String(selected);
+    const selRadio = document.querySelector('input[name="fsExportScope"][value="selected"]');
+    selRadio.disabled = !selected;
+    if (!selected && selRadio.checked) {
+      document.querySelector('input[name="fsExportScope"][value="view"]').checked = true;
+    }
     document.getElementById("fsExportAllCount").textContent = String(
       getAllSitesFilteredEvents().length
     );
@@ -179,16 +194,19 @@
     }
   }
 
-  function buildModel(events, scope, maskPersonalData) {
+  function buildModel(events, scope, maskPersonalData, noFilters) {
     return McpExport.buildExportModel(events, {
       extensionVersion: getExtensionVersion(),
       scope,
       maskPersonalData,
-      filters: {
-        timeRange: describeTimeRange(),
-        search: state.search.trim(),
-        status: state.status,
-      },
+      // Ticked events are picked by hand, so the view's filters don't apply.
+      filters: noFilters
+        ? {}
+        : {
+            timeRange: describeTimeRange(),
+            search: state.search.trim(),
+            status: state.status,
+          },
     });
   }
 
@@ -201,21 +219,35 @@
     return state.activeSite === ALL_SITES ? "All sites" : state.activeSite;
   }
 
-  async function runExport(kind, triggerBtn) {
-    const scopeInput = document.querySelector('input[name="fsExportScope"]:checked');
-    const allSites = (scopeInput && scopeInput.value === "all-sites") || state.activeSite === ALL_SITES;
-    const events = allSites ? getAllSitesFilteredEvents() : getFilteredEvents();
+  /** scope: "view", "all-sites" or "selected". */
+  function exportSource(scope) {
+    if (scope === "selected") {
+      const events = checkedEvents();
+      return { events, label: "Selected events", slug: "selected", noFilters: true };
+    }
+    const allSites = scope === "all-sites" || state.activeSite === ALL_SITES;
+    return {
+      events: allSites ? getAllSitesFilteredEvents() : getFilteredEvents(),
+      label: allSites ? "All sites" : viewScopeLabel(),
+      slug: allSites ? "all-sites" : McpExport.slug(siteLabel(state.activeSite)),
+      noFilters: false,
+    };
+  }
+
+  async function runExport(kind, triggerBtn, scope, mask) {
+    if (!scope) {
+      const scopeInput = document.querySelector('input[name="fsExportScope"]:checked');
+      scope = scopeInput ? scopeInput.value : "view";
+    }
+    if (mask === undefined) mask = document.getElementById("fsExportMask").checked;
+    const source = exportSource(scope);
+    const events = source.events;
     if (!events.length) {
       flashElementLabel(triggerBtn, "No events to export");
       return;
     }
-    const mask = document.getElementById("fsExportMask").checked;
-    const model = buildModel(events, allSites ? "All sites" : viewScopeLabel(), mask);
-    const base =
-      "mcp-events-" +
-      (allSites ? "all-sites" : McpExport.slug(siteLabel(state.activeSite))) +
-      "-" +
-      McpExport.fileStamp();
+    const model = buildModel(events, source.label, mask, source.noFilters);
+    const base = "mcp-events-" + source.slug + "-" + McpExport.fileStamp();
 
     if (kind === "agent") {
       const text = McpExport.toMarkdown(model, {
@@ -223,6 +255,16 @@
       });
       try {
         await navigator.clipboard.writeText(text);
+        flashElementLabel(triggerBtn, "Copied " + plural(events.length, "event"));
+      } catch (e) {
+        console.error("Copy failed", e);
+        flashElementLabel(triggerBtn, "Copy failed");
+      }
+      return;
+    }
+    if (kind === "copy-json") {
+      try {
+        await navigator.clipboard.writeText(McpExport.toJson(model));
         flashElementLabel(triggerBtn, "Copied " + plural(events.length, "event"));
       } catch (e) {
         console.error("Copy failed", e);
@@ -238,6 +280,59 @@
       downloadText(McpExport.toHtmlReport(model), base + ".html", "text/html");
     }
     flashElementLabel(triggerBtn, "Downloaded");
+  }
+
+  /* ---------- Selection (ticked events) ---------- */
+
+  function checkedEvents() {
+    if (!state.checked.size) return [];
+    return allEvents()
+      .filter((e) => state.checked.has(e.id))
+      .sort((a, b) => compareByTime(a, b, state.sort === "asc"));
+  }
+
+  function setChecked(ids, on) {
+    ids.forEach((id) => (on ? state.checked.add(id) : state.checked.delete(id)));
+    renderChecks();
+  }
+
+  /** Tick or untick one event; with shift, everything shown between it and the last one ticked. */
+  function toggleCheck(id, range) {
+    const anchor = state.lastCheckedId;
+    state.lastCheckedId = id;
+    if (range && anchor && anchor !== id) {
+      const shown = getFilteredEvents().map((e) => e.id);
+      const a = shown.indexOf(anchor);
+      const b = shown.indexOf(id);
+      if (a >= 0 && b >= 0) {
+        // The range takes the anchor's state, as in Gmail.
+        setChecked(shown.slice(Math.min(a, b), Math.max(a, b) + 1), state.checked.has(anchor));
+        return;
+      }
+    }
+    setChecked([id], !state.checked.has(id));
+  }
+
+  /** Update checkboxes, the header box and the selection bar without a full redraw. */
+  function renderChecks() {
+    els.timeline.querySelectorAll(".fs-event").forEach((row) => {
+      const on = state.checked.has(row.getAttribute("data-event-id"));
+      row.classList.toggle("checked", on);
+      const box = row.querySelector(".ex-check");
+      if (box) box.checked = on;
+    });
+    const shown = getFilteredEvents();
+    const shownChecked = shown.filter((e) => state.checked.has(e.id)).length;
+    els.checkAll.checked = !!shown.length && shownChecked === shown.length;
+    els.checkAll.indeterminate = shownChecked > 0 && shownChecked < shown.length;
+    els.checkAll.disabled = !shown.length;
+
+    const total = checkedEvents().length;
+    els.selBar.hidden = !total;
+    els.selCount.textContent = plural(total, "event") + " selected";
+    const hidden = total - shownChecked;
+    els.selHidden.textContent = hidden > 0 ? "(" + hidden + " not in this view)" : "";
+    renderExportCounts(shown.length);
   }
 
   /* ---------- Rendering ---------- */
@@ -298,6 +393,7 @@
       els.timeline.innerHTML =
         '<div class="empty"><strong>No events match</strong>Widen the time range or clear the filters.</div>';
       state.selectedEventId = null;
+      renderChecks();
       renderDetail(null);
       return;
     }
@@ -317,8 +413,10 @@
       const failed = isFailed(event);
       const active = event.id === state.selectedEventId;
       const sub = [event.itemAction, event.pageType].filter(Boolean).join(" · ");
+      const checked = state.checked.has(event.id);
       html.push(
-        `<div class="fs-event${failed ? " error" : ""}${active ? " active" : ""}" role="option" aria-selected="${active}" data-event-id="${escapeHtml(event.id)}">` +
+        `<div class="fs-event${failed ? " error" : ""}${active ? " active" : ""}${checked ? " checked" : ""}" role="option" aria-selected="${active}" data-event-id="${escapeHtml(event.id)}">` +
+          `<span class="ex-col-check"><input type="checkbox" class="ex-check" tabindex="-1" aria-label="Select this event"${checked ? " checked" : ""} /></span>` +
           `<span class="fs-event-time" title="${escapeHtml(moment(event.ts).format("YYYY-MM-DD HH:mm:ss.SSS"))}">${escapeHtml(moment(event.ts).format("HH:mm:ss.SSS"))}</span>` +
           `<span class="ex-col-status">${statusBadge(event.statusCode)}</span>` +
           `<span class="ex-col-action"><span class="fs-event-action">${escapeHtml(event.action)}</span>${sub ? `<span class="fs-event-sub">${escapeHtml(sub)}</span>` : ""}</span>` +
@@ -327,6 +425,7 @@
       );
     });
     els.timeline.innerHTML = html.join("");
+    renderChecks();
     renderDetail(findSelected(events));
   }
 
@@ -400,6 +499,10 @@
       .filter((site) => normalized.bySite[site].length)
       .sort((a, b) => a.localeCompare(b));
     els.totalStat.textContent = plural(normalized.total, "event");
+    if (state.checked.size) {
+      const ids = new Set(allEvents().map((e) => e.id));
+      state.checked.forEach((id) => ids.has(id) || state.checked.delete(id));
+    }
 
     if (!state.sites.length) {
       state.activeSite = null;
@@ -469,6 +572,9 @@
     exportBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       renderExportCounts(getFilteredEvents().length);
+      if (exportMenu.hidden && state.checked.size) {
+        document.querySelector('input[name="fsExportScope"][value="selected"]').checked = true;
+      }
       setExportMenuOpen(exportMenu.hidden);
     });
     exportMenu.addEventListener("click", (e) => {
@@ -485,7 +591,35 @@
 
     els.timeline.addEventListener("click", (e) => {
       const row = e.target.closest(".fs-event");
-      if (row) selectEvent(row.getAttribute("data-event-id"), false);
+      if (!row) return;
+      const id = row.getAttribute("data-event-id");
+      // Checkbox, Ctrl/Cmd+click or Shift+click tick events; a plain click shows one.
+      if (e.target.classList.contains("ex-check") || e.metaKey || e.ctrlKey || e.shiftKey) {
+        if (!e.target.classList.contains("ex-check")) e.preventDefault();
+        toggleCheck(id, e.shiftKey);
+        return;
+      }
+      selectEvent(id, false);
+    });
+    // Stop Shift+click from selecting page text.
+    els.timeline.addEventListener("mousedown", (e) => {
+      if (e.shiftKey && e.target.closest(".fs-event")) e.preventDefault();
+    });
+
+    els.checkAll.addEventListener("change", () => {
+      setChecked(getFilteredEvents().map((ev) => ev.id), els.checkAll.checked);
+    });
+    els.selBar.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-sel]");
+      if (!btn) return;
+      const kind = btn.getAttribute("data-sel");
+      if (kind === "clear") {
+        state.checked.clear();
+        state.lastCheckedId = null;
+        renderChecks();
+        return;
+      }
+      runExport(kind, btn, "selected", els.selMask.checked);
     });
 
     const timeGroup = document.getElementById("fsTimeChips");
@@ -530,7 +664,8 @@
       if (state.timeRange === "custom") renderTimeline();
     });
 
-    // Keyboard: "/" to search, j/k or arrows to move, Escape to close menus.
+    // Keyboard: "/" to search, j/k or arrows to move, x to tick the shown
+    // event, Escape to close menus (or clear the ticks).
     document.addEventListener("keydown", (e) => {
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
       if (e.key === "Escape") {
@@ -539,6 +674,10 @@
           exportBtn.focus();
         } else if (typing) {
           e.target.blur();
+        } else if (state.checked.size) {
+          state.checked.clear();
+          state.lastCheckedId = null;
+          renderChecks();
         }
         return;
       }
@@ -552,6 +691,9 @@
       } else if (e.key === "k" || e.key === "ArrowUp") {
         e.preventDefault();
         moveSelection(-1);
+      } else if (e.key === "x" && state.selectedEventId) {
+        e.preventDefault();
+        toggleCheck(state.selectedEventId, false);
       }
     });
 

@@ -36,6 +36,8 @@ In the Event Explorer, **Export** works on the events in the current view (the s
 
 **Hide personal data** is on by default. It replaces email addresses (anywhere, including URL-encoded ones in page URLs) and the values of fields such as email, phone, first and last name, address, postal code, birth date, password, token and cookie with `[masked]`. Turn it off if you need the real values.
 
+**Select several events:** tick the box on each row (Shift+click ticks a range, Ctrl or Cmd+click ticks a row, `x` ticks the event shown, the header box ticks everything in the view, Esc clears). Ticks stay when you change site or filters, so you can collect events from several sites. The bar above the list copies them for an agent or as JSON, or downloads them as JSON, Markdown or an HTML report; **Mask PII** hides personal data, as in Export. Export also offers **Selected** as its scope.
+
 The event details panel also has **Copy for agent** for the selected event, plus **Copy JSON** and **Download JSON** for its raw payload.
 
 ## SDK Tools

@@ -35,6 +35,7 @@
             <div class="menu ex-export-menu" id="fsExportMenu" role="menu" hidden>
               <fieldset class="ex-export-scope">
                 <legend class="field-label">Events</legend>
+                <label><input type="radio" name="fsExportScope" value="selected" disabled /> Selected (<span id="fsExportSelCount">0</span>)</label>
                 <label><input type="radio" name="fsExportScope" value="view" checked /> This view (<span id="fsExportViewCount">0</span>)</label>
                 <label><input type="radio" name="fsExportScope" value="all-sites" /> All sites, same filters (<span id="fsExportAllCount">0</span>)</label>
               </fieldset>
@@ -96,7 +97,23 @@
         <nav class="ex-sites" id="fsSiteTabs" aria-label="Captured sites"></nav>
 
         <section class="ex-stream" aria-labelledby="fsStreamSubtitle">
+          <div class="ex-selbar" id="fsSelBar" hidden>
+            <strong id="fsSelCount">0 events selected</strong>
+            <span class="ex-muted" id="fsSelHidden"></span>
+            <button class="btn btn-sm btn-ghost" type="button" data-sel="clear" title="Clear the selection (Esc)">Clear</button>
+            <span class="app-spacer"></span>
+            <label class="ex-selbar-mask" title="Mask emails, names, phone numbers, addresses and tokens"><input type="checkbox" id="fsSelMask" checked /> Mask PII</label>
+            <button class="btn btn-sm btn-primary" type="button" data-sel="agent">Copy for agent</button>
+            <button class="btn btn-sm" type="button" data-sel="copy-json">Copy JSON</button>
+            <span class="seg ex-selbar-dl" role="group" aria-label="Download selected events">
+              <span class="ex-selbar-dl-label">Download</span>
+              <button type="button" data-sel="json">JSON</button>
+              <button type="button" data-sel="md" title="Markdown">MD</button>
+              <button type="button" data-sel="html" title="HTML report">HTML</button>
+            </span>
+          </div>
           <div class="ex-stream-head">
+            <span class="ex-col-check"><input type="checkbox" id="fsCheckAll" aria-label="Select every event shown" title="Select every event shown" /></span>
             <span class="ex-col-time">Time</span>
             <span class="ex-col-status">Status</span>
             <span class="ex-col-action">Action</span>

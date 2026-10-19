@@ -198,7 +198,7 @@ body {
 .ex-stream-head,
 .fs-event {
   display: grid;
-  grid-template-columns: 96px 56px minmax(120px, 0.9fr) minmax(0, 1.4fr);
+  grid-template-columns: 16px 96px 56px minmax(120px, 0.9fr) minmax(0, 1.4fr);
   align-items: center;
   gap: 10px;
   padding: 0 12px;
@@ -253,6 +253,54 @@ body {
 .fs-event.active {
   background: var(--bg-selected);
   box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.fs-event.checked {
+  background: var(--accent-soft);
+}
+
+.fs-event.checked.active {
+  background: var(--bg-selected);
+}
+
+.ex-col-check {
+  display: flex;
+  align-items: center;
+}
+
+.ex-col-check input {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Selection bar: actions for the ticked events */
+.ex-selbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+
+.ex-selbar[hidden] {
+  display: none;
+}
+
+.ex-selbar-dl-label {
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  color: var(--text-muted);
+}
+
+.ex-selbar-mask {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
 }
 
 .fs-event.error .ex-col-action {
@@ -421,7 +469,7 @@ body {
   }
 
   .fs-event {
-    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-columns: auto auto auto minmax(0, 1fr);
     padding: 6px 12px;
   }
 

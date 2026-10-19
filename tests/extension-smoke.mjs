@@ -236,6 +236,43 @@ async function run() {
     }
 
     try {
+      // Capture clipboard writes (headless has no clipboard permission).
+      await fsPage.evaluate(() => {
+        window.__copied = [];
+        navigator.clipboard.writeText = async (t) => window.__copied.push(t);
+      });
+      const boxes = await fsPage.$$(".fs-event .ex-check");
+      await boxes[0].click();
+      await fsPage.keyboard.down("Shift");
+      await boxes[2].click();
+      await fsPage.keyboard.up("Shift");
+      const count = await fsPage.$eval("#fsSelCount", (el) => el.textContent.trim());
+      assert.strictEqual(count, "3 events selected");
+      assert.strictEqual(await fsPage.$eval("#fsSelBar", (el) => el.hidden), false);
+      await fsPage.click('#fsSelBar [data-sel="copy-json"]');
+      await fsPage.waitForFunction(() => window.__copied.length === 1, { timeout: 5000 });
+      const model = JSON.parse(await fsPage.evaluate(() => window.__copied[0]));
+      assert.strictEqual(model.events.length, 3);
+      assert.strictEqual(model.scope, "Selected events");
+      pass("tick + shift-click selects a range and Copy JSON copies it");
+
+      await fsPage.click('.fs-tab[data-site^="other.example.com"]');
+      const hidden = await fsPage.$eval("#fsSelHidden", (el) => el.textContent.trim());
+      assert.strictEqual(hidden, "(3 not in this view)");
+      await fsPage.click(".fs-event", { modifiers: [] });
+      await fsPage.keyboard.down("Control");
+      await fsPage.click(".fs-event .ex-col-action");
+      await fsPage.keyboard.up("Control");
+      assert.strictEqual(await fsPage.$eval("#fsSelCount", (el) => el.textContent.trim()), "4 events selected");
+      await fsPage.click('#fsSelBar [data-sel="clear"]');
+      assert.strictEqual(await fsPage.$eval("#fsSelBar", (el) => el.hidden), true);
+      await fsPage.click('.fs-tab[data-site^="shop.example.com"]');
+      pass("selection spans sites, Ctrl+click ticks, Clear empties it");
+    } catch (e) {
+      fail("multi-select", e);
+    }
+
+    try {
       await fsPage.evaluate(() => {
         const input = document.getElementById("fsSearch");
         input.value = "Add To Cart";
