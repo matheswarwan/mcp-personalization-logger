@@ -1,6 +1,6 @@
 # Chrome Web Store listing: privacy practices
 
-Text for the Privacy practices tab, checked against how the code uses each permission (version 0.0.6). Update it when permissions or features change.
+Text for the Privacy practices tab, checked against how the code uses each permission (version 0.1.0). Update it when permissions or features change.
 
 ## Single purpose
 
