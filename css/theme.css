@@ -114,6 +114,26 @@ a {
   outline-offset: 1px;
 }
 
+/* Creator credit (in the app bar, and the popup footer) */
+.app-credit {
+  font-size: 11px;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+
+.app-credit a {
+  color: inherit;
+}
+
+.app-credit a:hover {
+  color: var(--accent);
+}
+
+.pp-credit {
+  padding: 6px 12px 8px;
+  text-align: right;
+}
+
 /* App bar */
 .app-bar {
   display: flex;
