@@ -29,6 +29,7 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude '**/.DS_Store' \
     --exclude 'node_modules/' \
     --exclude 'package.sh' \
+    --exclude 'claude-*.md' \
     "$ROOT/" "$STAGE/"
 else
   # Fallback without rsync
@@ -37,6 +38,7 @@ else
     "$STAGE/devNotes" "$STAGE/gitImages" "$STAGE/docs" "$STAGE/node_modules" \
     "$STAGE/package.sh" "$STAGE/.gitignore"
   find "$STAGE" -name '.DS_Store' -delete
+  rm -f "$STAGE"/claude-*.md
 fi
 
 (

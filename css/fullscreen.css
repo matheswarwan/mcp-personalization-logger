@@ -192,6 +192,7 @@ body {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  overflow-y: auto;
   border-right: 1px solid var(--border);
 }
 
@@ -221,7 +222,11 @@ body {
 }
 
 .ex-timeline {
-  flex: 1;
+  flex: 1 0 auto;
+  height: 0;
+  /* In a short window the chart must not squeeze the list away: the list
+     keeps 200px and the whole column scrolls instead. */
+  min-height: 200px;
   overflow: auto;
   outline: none;
 }
@@ -484,4 +489,292 @@ body {
   .ex-detail-head {
     flex-wrap: wrap;
   }
+}
+
+/* More filters and grouping (feedback #141) */
+.ex-facets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.ex-facet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ex-facet .input {
+  width: auto;
+  max-width: 220px;
+  height: 26px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+
+.ex-facet .input.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ex-facets-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-strong);
+}
+
+#BtnFsChart[aria-pressed="true"],
+#BtnFsChartTable[aria-pressed="true"] {
+  background: var(--bg-selected);
+}
+
+/* Events over time chart */
+.ex-chart {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-other: #9a9a96;
+  --series-failed: #c2311d;
+  position: relative;
+  flex: none;
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+@media (prefers-color-scheme: dark) {
+  .ex-chart {
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-other: #6f6e69;
+    --series-failed: #e66767;
+  }
+}
+
+.ex-chart[hidden] {
+  display: none;
+}
+
+.ex-chart-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.ex-chart-plot svg {
+  display: block;
+  width: 100%;
+  height: 96px;
+  margin-top: 6px;
+  overflow: visible;
+}
+
+.ex-chart-plot .axis {
+  fill: var(--text-subtle);
+  font: 10px var(--font);
+}
+
+.ex-chart-plot .grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.ex-chart-plot .hit {
+  fill: transparent;
+  cursor: zoom-in;
+}
+
+.ex-chart-plot .hit:hover {
+  fill: var(--bg-hover);
+}
+
+.ex-chart-plot .hit.focus {
+  fill: var(--bg-hover);
+}
+
+.ex-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ex-chart-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 260px;
+  padding: 1px 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ex-chart-legend button:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.ex-chart-legend button span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ex-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.ex-chart-tip {
+  position: absolute;
+  z-index: 5;
+  min-width: 160px;
+  max-width: 300px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.ex-chart-tip .tip-time {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+
+.ex-chart-tip .tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ex-chart-tip .tip-row span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ex-chart-tip .tip-hint {
+  margin-top: 4px;
+  color: var(--text-subtle);
+  font-size: 11px;
+}
+
+.ex-chart-table {
+  max-height: 160px;
+  overflow: auto;
+  margin-top: 6px;
+}
+
+.ex-chart-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ex-chart-table th,
+.ex-chart-table td {
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.ex-chart-table td.num,
+.ex-chart-table th.num {
+  text-align: right;
+  font-family: var(--mono);
+}
+
+/* Group headers in the stream */
+.ex-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font: 600 12px var(--font);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ex-group:hover {
+  background: var(--bg-hover);
+}
+
+.ex-group .chev {
+  width: 10px;
+  color: var(--text-subtle);
+}
+
+.ex-group .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ex-group .meta {
+  margin-left: auto;
+  flex: none;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.ex-group .meta .failed {
+  color: var(--err);
+}
+
+.ex-group-only {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font: 11px/18px var(--font);
+  cursor: pointer;
+}
+
+.ex-group-only:hover {
+  color: var(--text);
+}
+
+.kv dd .ex-link {
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.kv dd .ex-link:hover {
+  text-decoration: underline;
 }

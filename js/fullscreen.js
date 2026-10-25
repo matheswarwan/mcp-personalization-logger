@@ -17,6 +17,14 @@
     lastCheckedId: null,
     eventsBySite: {},
     total: 0,
+    // Feedback #141: filters by field value, grouping and the chart.
+    facets: { user: "", action: "", pageType: "", sdk: "" },
+    groupBy: "",
+    collapsed: new Set(),
+    chartOn: readPref("mcpChartOn", "1") === "1",
+    chartTable: false,
+    rangeHistory: [],
+    colorSlots: {},
   };
 
   const els = {
@@ -37,7 +45,26 @@
     selMask: document.getElementById("fsSelMask"),
   };
 
-  const { compareByTime, normalizeEvents, isFailed, siteLabel, siteDetail } = McpEvents;
+  const { compareByTime, normalizeEvents, isFailed, siteLabel, siteDetail, groupOf, facetCounts, timeBuckets, GROUP_FIELDS } = McpEvents;
+
+  const FACETS = ["user", "action", "pageType", "sdk"];
+  const SERIES_SLOTS = 5;
+  const OTHER_KEY = "__other__";
+
+  function readPref(key, fallback) {
+    try {
+      const v = localStorage.getItem(key);
+      return v == null ? fallback : v;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function writePref(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (_) {}
+  }
 
   function escapeHtml(value) {
     return String(value)
@@ -115,24 +142,24 @@
   }
 
   function getFilteredEvents() {
-    if (!state.activeSite) return [];
-    if (state.activeSite === ALL_SITES) return filterEvents(allEvents());
-    return filterEvents(state.eventsBySite[state.activeSite] || []);
+    return filterEvents(siteEvents());
   }
 
   function getAllSitesFilteredEvents() {
     return filterEvents(allEvents());
   }
 
-  function filterEvents(events) {
+  /** Time, status and search only: the facet lists count within these. */
+  function baseFilter(events) {
     const { from, to } = getRangeBounds();
     const q = state.search.trim().toLowerCase();
 
-    const filtered = events.filter((event) => {
+    return events.filter((event) => {
       const m = moment(event.ts);
       if (from && m.isBefore(from)) return false;
       if (to && m.isAfter(to)) return false;
       if (state.status === "failed" && !isFailed(event)) return false;
+      if (state.status === "ok" && isFailed(event)) return false;
       if (!q) return true;
       const haystack = [
         event.action,
@@ -146,9 +173,25 @@
         .toLowerCase();
       return haystack.includes(q);
     });
+  }
 
+  function matchesFacets(event) {
+    return FACETS.every((f) => !state.facets[f] || groupOf(event, f).key === state.facets[f]);
+  }
+
+  function filterEvents(events) {
+    const filtered = baseFilter(events).filter(matchesFacets);
     filtered.sort((a, b) => compareByTime(a, b, state.sort === "asc"));
     return filtered;
+  }
+
+  function siteEvents() {
+    if (!state.activeSite) return [];
+    return state.activeSite === ALL_SITES ? allEvents() : state.eventsBySite[state.activeSite] || [];
+  }
+
+  function hasExtraFilters() {
+    return FACETS.some((f) => state.facets[f]);
   }
 
   function findSelected(events) {
@@ -206,6 +249,10 @@
             timeRange: describeTimeRange(),
             search: state.search.trim(),
             status: state.status,
+            facets: FACETS.filter((f) => state.facets[f]).map((f) => ({
+              field: GROUP_FIELDS[f].label,
+              value: facetLabel(f, state.facets[f]),
+            })),
           },
     });
   }
@@ -335,6 +382,293 @@
     renderExportCounts(shown.length);
   }
 
+  /* ---------- Filters by field, grouping (feedback #141) ---------- */
+
+  const facetSelects = {
+    user: document.getElementById("fsFilterUser"),
+    action: document.getElementById("fsFilterAction"),
+    pageType: document.getElementById("fsFilterPageType"),
+    sdk: document.getElementById("fsFilterSdk"),
+  };
+  // Labels of the chosen values, kept when a value drops out of the current range.
+  const facetLabels = {};
+
+  function facetLabel(field, key) {
+    return facetLabels[field + "\u0000" + key] || key || "(none)";
+  }
+
+  function shortLabel(text, max) {
+    const t = String(text);
+    return t.length > max ? t.slice(0, max - 1) + "…" : t;
+  }
+
+  function renderFacets() {
+    const base = baseFilter(siteEvents());
+    FACETS.forEach((field) => {
+      const sel = facetSelects[field];
+      const chosen = state.facets[field];
+      const rows = facetCounts(base, field);
+      rows.forEach((r) => (facetLabels[field + "\u0000" + r.key] = r.label));
+      if (chosen && !rows.some((r) => r.key === chosen)) {
+        rows.unshift({ key: chosen, label: facetLabel(field, chosen), count: 0 });
+      }
+      const any = field === "user" ? "Anyone" : "Any";
+      const opts = ['<option value="">' + any + " (" + rows.length + ")</option>"];
+      rows.slice(0, 500).forEach((r) => {
+        opts.push(
+          '<option value="' + escapeHtml(r.key) + '"' + (r.key === chosen ? " selected" : "") + ">" +
+            escapeHtml(shortLabel(r.label, 60)) + " (" + r.count + ")</option>"
+        );
+      });
+      sel.innerHTML = opts.join("");
+      sel.value = chosen;
+      sel.classList.toggle("on", !!chosen);
+      sel.title = chosen ? facetLabel(field, chosen) : "";
+    });
+    document.getElementById("BtnFsClearFilters").hidden = !hasExtraFilters();
+  }
+
+  function setFacet(field, key, label) {
+    if (!FACETS.includes(field)) return;
+    if (label) facetLabels[field + "\u0000" + key] = label;
+    state.facets[field] = key;
+    renderTimeline();
+  }
+
+  /* ---------- Events over time chart ---------- */
+
+  const chartEls = {
+    box: document.getElementById("fsChart"),
+    plot: document.getElementById("fsChartPlot"),
+    legend: document.getElementById("fsChartLegend"),
+    tip: document.getElementById("fsChartTip"),
+    title: document.getElementById("fsChartTitle"),
+    scale: document.getElementById("fsChartScale"),
+    back: document.getElementById("BtnFsChartBack"),
+    tableBtn: document.getElementById("BtnFsChartTable"),
+  };
+  let chartModel = null;
+
+  function sizeLabel(ms) {
+    if (ms < 60e3) return ms / 1e3 + " second" + (ms === 1e3 ? "" : "s");
+    if (ms < 3600e3) return ms / 60e3 + " minute" + (ms === 60e3 ? "" : "s");
+    if (ms < 86400e3) return ms / 3600e3 + " hour" + (ms === 3600e3 ? "" : "s");
+    return ms / 86400e3 + " day" + (ms === 86400e3 ? "" : "s");
+  }
+
+  function bucketTime(start, size) {
+    const fmt = size < 60e3 ? "HH:mm:ss" : size < 86400e3 ? "HH:mm" : "MMM D";
+    const day = size < 86400e3 ? "MMM D " : "";
+    return moment(start).format(day + fmt) + " to " + moment(start + size).format(fmt);
+  }
+
+  /**
+   * Series for the chart: by status when nothing is grouped, else the five
+   * biggest groups plus Other. A value keeps its color slot while it stays
+   * in the top five, so filtering doesn't repaint the survivors.
+   */
+  function chartSeries(events) {
+    if (!state.groupBy) {
+      return {
+        field: "",
+        keyOf: (e) => (isFailed(e) ? "failed" : "ok"),
+        series: [
+          { key: "ok", label: "OK", color: "var(--series-1)" },
+          { key: "failed", label: "Failed", color: "var(--series-failed)" },
+        ],
+      };
+    }
+    const field = state.groupBy;
+    const top = facetCounts(events, field).slice(0, SERIES_SLOTS);
+    const slots = state.colorSlots[field] || (state.colorSlots[field] = {});
+    const topKeys = new Set(top.map((t) => t.key));
+    Object.keys(slots).forEach((k) => topKeys.has(k) || delete slots[k]);
+    const used = new Set(Object.values(slots));
+    top.forEach((t) => {
+      if (slots[t.key] != null) return;
+      let i = 1;
+      while (used.has(i)) i++;
+      slots[t.key] = i;
+      used.add(i);
+    });
+    const series = top.map((t) => ({ key: t.key, label: t.label, color: "var(--series-" + slots[t.key] + ")" }));
+    const total = events.length;
+    const shown = top.reduce((n, t) => n + t.count, 0);
+    if (total > shown) series.push({ key: OTHER_KEY, label: "Other", color: "var(--series-other)" });
+    return {
+      field,
+      keyOf: (e) => {
+        const k = groupOf(e, field).key;
+        return topKeys.has(k) ? k : OTHER_KEY;
+      },
+      series,
+    };
+  }
+
+  function renderChart(events) {
+    chartEls.box.hidden = !state.chartOn;
+    chartEls.back.hidden = !state.rangeHistory.length;
+    if (!state.chartOn) return;
+    chartEls.title.textContent = state.groupBy
+      ? "Events over time by " + GROUP_FIELDS[state.groupBy].label.toLowerCase()
+      : "Events over time";
+    if (!events.length) {
+      chartModel = null;
+      chartEls.scale.textContent = "";
+      chartEls.plot.innerHTML = '<p class="ex-muted">No events in this range.</p>';
+      chartEls.legend.innerHTML = "";
+      return;
+    }
+    const { from, to } = getRangeBounds();
+    const sized = timeBuckets(events, {
+      from: from ? from.valueOf() : undefined,
+      to: to ? Math.min(to.valueOf(), Date.now()) : undefined,
+      maxBuckets: 60,
+    });
+    const spec = chartSeries(events);
+    sized.buckets.forEach((b) => (b.stacks = {}));
+    events.forEach((e) => {
+      const b = sized.buckets[Math.floor((e.ts - sized.buckets[0].start) / sized.size)];
+      if (b) b.stacks[spec.keyOf(e)] = (b.stacks[spec.keyOf(e)] || 0) + 1;
+    });
+    sized.buckets.forEach((b) => (b.count = Object.values(b.stacks).reduce((n, v) => n + v, 0)));
+    chartModel = { ...sized, spec };
+    chartEls.scale.textContent = "Each bar: " + sizeLabel(sized.size) + ". Click a bar to zoom in.";
+
+    chartEls.legend.innerHTML = spec.series
+      .map(
+        (s) =>
+          '<button type="button" data-key="' + escapeHtml(s.key) + '" title="Show only ' + escapeHtml(s.label) + '">' +
+          '<span class="ex-swatch" style="background:' + s.color + '"></span><span>' + escapeHtml(shortLabel(s.label, 40)) + "</span></button>"
+      )
+      .join("");
+
+    if (state.chartTable) {
+      renderChartTable();
+    } else {
+      drawChart();
+    }
+  }
+
+  function renderChartTable() {
+    const { buckets, size, spec } = chartModel;
+    const head =
+      "<tr><th>Time</th><th class=\"num\">Events</th>" +
+      spec.series.map((s) => '<th class="num">' + escapeHtml(shortLabel(s.label, 24)) + "</th>").join("") +
+      "</tr>";
+    const rows = buckets
+      .filter((b) => b.count)
+      .map(
+        (b) =>
+          "<tr><td>" + escapeHtml(bucketTime(b.start, size)) + '</td><td class="num">' + b.count + "</td>" +
+          spec.series.map((s) => '<td class="num">' + (b.stacks[s.key] || 0) + "</td>").join("") +
+          "</tr>"
+      )
+      .join("");
+    chartEls.plot.innerHTML = '<div class="ex-chart-table"><table><thead>' + head + "</thead><tbody>" + rows + "</tbody></table></div>";
+  }
+
+  function drawChart() {
+    const { buckets, size, spec } = chartModel;
+    const width = Math.max(200, chartEls.plot.clientWidth || 600);
+    const height = 96;
+    const left = 30;
+    const top = 4;
+    const bottom = 18;
+    const plotW = width - left;
+    const plotH = height - top - bottom;
+    const max = Math.max(1, ...buckets.map((b) => b.count));
+    const step = plotW / buckets.length;
+    const barW = Math.max(1, step - 2);
+    const y = (v) => top + plotH - (v / max) * plotH;
+
+    const parts = [];
+    parts.push('<line class="grid" x1="' + left + '" x2="' + width + '" y1="' + (top + plotH + 0.5) + '" y2="' + (top + plotH + 0.5) + '"/>');
+    parts.push('<line class="grid" x1="' + left + '" x2="' + width + '" y1="' + (top + 0.5) + '" y2="' + (top + 0.5) + '" stroke-dasharray="2 3"/>');
+    parts.push('<text class="axis" x="' + (left - 6) + '" y="' + (top + 4) + '" text-anchor="end">' + max + "</text>");
+    parts.push('<text class="axis" x="' + (left - 6) + '" y="' + (top + plotH) + '" text-anchor="end">0</text>');
+
+    // Up to six time labels along the bottom.
+    const every = Math.max(1, Math.ceil(buckets.length / 6));
+    const fmt = size < 60e3 ? "HH:mm:ss" : size < 86400e3 ? "HH:mm" : "MMM D";
+    buckets.forEach((b, i) => {
+      if (i % every) return;
+      parts.push('<text class="axis" x="' + (left + i * step + 1) + '" y="' + (height - 4) + '">' + escapeHtml(moment(b.start).format(fmt)) + "</text>");
+    });
+
+    buckets.forEach((b, i) => {
+      const x = left + i * step + 1;
+      let base = top + plotH;
+      spec.series.forEach((s) => {
+        const v = b.stacks[s.key] || 0;
+        if (!v) return;
+        const h = (v / max) * plotH;
+        // 1px surface gap between stacked segments.
+        const segH = Math.max(1, h - (base < top + plotH ? 1 : 0));
+        parts.push('<rect x="' + x.toFixed(1) + '" y="' + (base - h).toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + segH.toFixed(1) + '" rx="' + Math.min(2, barW / 2).toFixed(1) + '" fill="' + s.color + '"/>');
+        base -= h;
+      });
+      parts.push('<rect class="hit" data-i="' + i + '" x="' + (left + i * step).toFixed(1) + '" y="' + top + '" width="' + step.toFixed(1) + '" height="' + plotH + '"/>');
+    });
+    void y;
+    chartEls.plot.innerHTML =
+      '<svg width="' + width + '" height="' + height + '" role="img" aria-label="Events over time, ' + buckets.length + " bars of " + sizeLabel(size) + '">' +
+      parts.join("") +
+      "</svg>";
+  }
+
+  function showChartTip(i, clientX) {
+    if (!chartModel) return;
+    const b = chartModel.buckets[i];
+    if (!b) return;
+    const rows = chartModel.spec.series
+      .filter((s) => b.stacks[s.key])
+      .map(
+        (s) =>
+          '<div class="tip-row"><span class="ex-swatch" style="background:' + s.color + '"></span><span>' +
+          escapeHtml(shortLabel(s.label, 40)) + '</span><span class="mono">' + b.stacks[s.key] + "</span></div>"
+      )
+      .join("");
+    chartEls.tip.innerHTML =
+      '<div class="tip-time">' + escapeHtml(bucketTime(b.start, chartModel.size)) + "</div>" +
+      (rows || '<div class="ex-muted">No events</div>') +
+      (b.count ? '<div class="tip-hint">' + plural(b.count, "event") + ". Click to zoom in.</div>" : "");
+    chartEls.tip.hidden = false;
+    const box = chartEls.box.getBoundingClientRect();
+    const tipW = chartEls.tip.offsetWidth;
+    const x = Math.min(Math.max(8, clientX - box.left + 12), box.width - tipW - 8);
+    chartEls.tip.style.left = x + "px";
+    chartEls.tip.style.top = "34px";
+  }
+
+  function rangeSnapshot() {
+    return { timeRange: state.timeRange, customFrom: state.customFrom, customTo: state.customTo };
+  }
+
+  function applyRange(r) {
+    state.timeRange = r.timeRange;
+    state.customFrom = r.customFrom;
+    state.customTo = r.customTo;
+    els.from.value = r.customFrom || "";
+    els.to.value = r.customTo || "";
+    els.customRange.hidden = state.timeRange !== "custom";
+    const group = document.getElementById("fsTimeChips");
+    setSegActive(group, group.querySelector('[data-range="' + state.timeRange + '"]'));
+    renderTimeline();
+  }
+
+  function zoomToBucket(i) {
+    const b = chartModel && chartModel.buckets[i];
+    if (!b || !b.count) return;
+    state.rangeHistory.push(rangeSnapshot());
+    const fmt = "YYYY-MM-DDTHH:mm:ss";
+    applyRange({
+      timeRange: "custom",
+      customFrom: moment(b.start).format(fmt),
+      customTo: moment(b.end - 1).format(fmt),
+    });
+  }
+
   /* ---------- Rendering ---------- */
 
   function renderTabs() {
@@ -377,17 +711,74 @@
     }
   }
 
+  function eventRow(event) {
+    const failed = isFailed(event);
+    const active = event.id === state.selectedEventId;
+    const sub = [event.itemAction, event.pageType].filter(Boolean).join(" · ");
+    const checked = state.checked.has(event.id);
+    return (
+      `<div class="fs-event${failed ? " error" : ""}${active ? " active" : ""}${checked ? " checked" : ""}" role="option" aria-selected="${active}" data-event-id="${escapeHtml(event.id)}">` +
+      `<span class="ex-col-check"><input type="checkbox" class="ex-check" tabindex="-1" aria-label="Select this event"${checked ? " checked" : ""} /></span>` +
+      `<span class="fs-event-time" title="${escapeHtml(moment(event.ts).format("YYYY-MM-DD HH:mm:ss.SSS"))}">${escapeHtml(moment(event.ts).format("HH:mm:ss.SSS"))}</span>` +
+      `<span class="ex-col-status">${statusBadge(event.statusCode)}</span>` +
+      `<span class="ex-col-action"><span class="fs-event-action">${escapeHtml(event.action)}</span>${sub ? `<span class="fs-event-sub">${escapeHtml(sub)}</span>` : ""}</span>` +
+      `<span class="ex-col-page fs-event-url" title="${escapeHtml(event.pageUrl || "")}">${escapeHtml(pagePath(event.pageUrl))}</span>` +
+      "</div>"
+    );
+  }
+
+  /** Groups in the order their first event appears, so they follow the sort. */
+  function groupEvents(events, field) {
+    const groups = new Map();
+    events.forEach((e) => {
+      const g = groupOf(e, field);
+      let row = groups.get(g.key);
+      if (!row) {
+        row = { key: g.key, label: g.label, events: [], failed: 0 };
+        groups.set(g.key, row);
+      }
+      row.events.push(e);
+      if (isFailed(e)) row.failed += 1;
+    });
+    return [...groups.values()];
+  }
+
+  function groupHeader(group, field) {
+    const open = !state.collapsed.has(field + "\u0000" + group.key);
+    const times = group.events.map((e) => e.ts);
+    const first = Math.min(...times);
+    const last = Math.max(...times);
+    const span =
+      moment(first).format("MMM D HH:mm:ss") +
+      (last - first >= 1000 ? " to " + moment(last).format(moment(first).isSame(last, "day") ? "HH:mm:ss" : "MMM D HH:mm:ss") : "");
+    const canFilter = FACETS.includes(field) && state.facets[field] !== group.key;
+    return (
+      `<div class="ex-group" role="button" tabindex="0" aria-expanded="${open}" data-group="${escapeHtml(group.key)}" title="${escapeHtml(group.label)}">` +
+      `<span class="chev" aria-hidden="true">${open ? "▾" : "▸"}</span>` +
+      `<span class="name">${escapeHtml(group.label)}</span>` +
+      (canFilter ? `<button type="button" class="ex-group-only" data-only="${escapeHtml(group.key)}">Only this</button>` : "") +
+      `<span class="meta">${plural(group.events.length, "event")}` +
+      (group.failed ? `, <span class="failed">${group.failed} failed</span>` : "") +
+      ` · ${escapeHtml(span)}</span>` +
+      "</div>"
+    );
+  }
+
   function renderTimeline() {
     const events = getFilteredEvents();
+    renderFacets();
     renderExportCounts(events.length);
     els.filteredStat.textContent = events.length + " shown";
 
     if (!state.activeSite) {
       els.timeline.innerHTML =
         '<div class="empty"><strong>No events captured yet</strong>Open a site with Marketing Cloud Personalization to start logging.</div>';
+      renderChart([]);
       renderDetail(null);
       return;
     }
+
+    renderChart(events);
 
     if (!events.length) {
       els.timeline.innerHTML =
@@ -402,28 +793,24 @@
       state.selectedEventId = events[0].id;
     }
 
-    let lastDay = "";
     const html = [];
-    events.forEach((event) => {
-      const day = moment(event.ts).format("ddd, MMM D, YYYY");
-      if (day !== lastDay) {
-        html.push(`<div class="ex-day">${escapeHtml(day)}</div>`);
-        lastDay = day;
-      }
-      const failed = isFailed(event);
-      const active = event.id === state.selectedEventId;
-      const sub = [event.itemAction, event.pageType].filter(Boolean).join(" · ");
-      const checked = state.checked.has(event.id);
-      html.push(
-        `<div class="fs-event${failed ? " error" : ""}${active ? " active" : ""}${checked ? " checked" : ""}" role="option" aria-selected="${active}" data-event-id="${escapeHtml(event.id)}">` +
-          `<span class="ex-col-check"><input type="checkbox" class="ex-check" tabindex="-1" aria-label="Select this event"${checked ? " checked" : ""} /></span>` +
-          `<span class="fs-event-time" title="${escapeHtml(moment(event.ts).format("YYYY-MM-DD HH:mm:ss.SSS"))}">${escapeHtml(moment(event.ts).format("HH:mm:ss.SSS"))}</span>` +
-          `<span class="ex-col-status">${statusBadge(event.statusCode)}</span>` +
-          `<span class="ex-col-action"><span class="fs-event-action">${escapeHtml(event.action)}</span>${sub ? `<span class="fs-event-sub">${escapeHtml(sub)}</span>` : ""}</span>` +
-          `<span class="ex-col-page fs-event-url" title="${escapeHtml(event.pageUrl || "")}">${escapeHtml(pagePath(event.pageUrl))}</span>` +
-          "</div>"
-      );
-    });
+    if (state.groupBy) {
+      groupEvents(events, state.groupBy).forEach((group) => {
+        html.push(groupHeader(group, state.groupBy));
+        if (state.collapsed.has(state.groupBy + "\u0000" + group.key)) return;
+        group.events.forEach((event) => html.push(eventRow(event)));
+      });
+    } else {
+      let lastDay = "";
+      events.forEach((event) => {
+        const day = moment(event.ts).format("ddd, MMM D, YYYY");
+        if (day !== lastDay) {
+          html.push(`<div class="ex-day">${escapeHtml(day)}</div>`);
+          lastDay = day;
+        }
+        html.push(eventRow(event));
+      });
+    }
     els.timeline.innerHTML = html.join("");
     renderChecks();
     renderDetail(findSelected(events));
@@ -443,6 +830,7 @@
       ["Item action", event.itemAction || "-"],
       ["Time", moment(event.ts).format("YYYY-MM-DD HH:mm:ss.SSS") + " (" + moment(event.ts).fromNow() + ")"],
       ["Status", event.statusCode == null ? "Transport error" : String(event.statusCode)],
+      ["User", event.userLabel || "-"],
       ["Site", event.site],
       ["SDK", event.sdk === "data-cloud" ? "Data Cloud Web SDK" : "Evergage beacon"],
       ["Page type", event.pageType || "-"],
@@ -451,7 +839,15 @@
     ];
     els.detail.innerHTML =
       '<dl class="kv">' +
-      rows.map((r) => `<dt>${escapeHtml(r[0])}</dt><dd>${escapeHtml(r[1])}</dd>`).join("") +
+      rows
+        .map((r) => {
+          let extra = "";
+          if (r[0] === "User" && event.userKey && state.facets.user !== event.userKey) {
+            extra = '<button type="button" class="ex-link" data-only-user>Only this user</button>';
+          }
+          return `<dt>${escapeHtml(r[0])}</dt><dd>${escapeHtml(r[1])}${extra}</dd>`;
+        })
+        .join("") +
       '</dl><div class="fs-json" id="fsJsonMount"></div>';
 
     const viewer = new JSONViewer();
@@ -471,11 +867,18 @@
   }
 
   function moveSelection(step) {
-    const events = getFilteredEvents();
-    if (!events.length) return;
-    const i = events.findIndex((e) => e.id === state.selectedEventId);
-    const next = events[Math.min(events.length - 1, Math.max(0, (i < 0 ? 0 : i) + step))];
-    selectEvent(next.id, true);
+    // Rows on screen, so collapsed groups are skipped.
+    const ids = [...els.timeline.querySelectorAll(".fs-event")].map((r) => r.getAttribute("data-event-id"));
+    if (!ids.length) return;
+    const i = ids.indexOf(state.selectedEventId);
+    selectEvent(ids[Math.min(ids.length - 1, Math.max(0, (i < 0 ? 0 : i) + step))], true);
+  }
+
+  function toggleGroup(key) {
+    const id = state.groupBy + "\u0000" + key;
+    if (state.collapsed.has(id)) state.collapsed.delete(id);
+    else state.collapsed.add(id);
+    renderTimeline();
   }
 
   function setActiveSite(site) {
@@ -590,6 +993,17 @@
     });
 
     els.timeline.addEventListener("click", (e) => {
+      const only = e.target.closest("[data-only]");
+      if (only) {
+        const header = only.closest(".ex-group");
+        setFacet(state.groupBy, only.getAttribute("data-only"), header && header.getAttribute("title"));
+        return;
+      }
+      const header = e.target.closest(".ex-group");
+      if (header) {
+        toggleGroup(header.getAttribute("data-group"));
+        return;
+      }
       const row = e.target.closest(".fs-event");
       if (!row) return;
       const id = row.getAttribute("data-event-id");
@@ -604,6 +1018,98 @@
     // Stop Shift+click from selecting page text.
     els.timeline.addEventListener("mousedown", (e) => {
       if (e.shiftKey && e.target.closest(".fs-event")) e.preventDefault();
+    });
+
+    els.timeline.addEventListener("keydown", (e) => {
+      const header = e.target.closest && e.target.closest(".ex-group");
+      if (header && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleGroup(header.getAttribute("data-group"));
+      }
+    });
+
+    FACETS.forEach((field) => {
+      facetSelects[field].addEventListener("change", (e) => {
+        const opt = e.target.selectedOptions[0];
+        setFacet(field, e.target.value, opt ? opt.textContent.replace(/ \(\d+\)$/, "") : "");
+      });
+    });
+    document.getElementById("BtnFsClearFilters").addEventListener("click", () => {
+      FACETS.forEach((f) => (state.facets[f] = ""));
+      renderTimeline();
+    });
+    document.getElementById("fsGroupBy").addEventListener("change", (e) => {
+      state.groupBy = e.target.value;
+      writePref("mcpGroupBy", state.groupBy);
+      renderTimeline();
+    });
+    const chartBtn = document.getElementById("BtnFsChart");
+    chartBtn.setAttribute("aria-pressed", String(state.chartOn));
+    chartBtn.addEventListener("click", () => {
+      state.chartOn = !state.chartOn;
+      writePref("mcpChartOn", state.chartOn ? "1" : "0");
+      chartBtn.setAttribute("aria-pressed", String(state.chartOn));
+      renderChart(getFilteredEvents());
+    });
+    chartEls.tableBtn.addEventListener("click", () => {
+      state.chartTable = !state.chartTable;
+      chartEls.tableBtn.setAttribute("aria-pressed", String(state.chartTable));
+      chartEls.tip.hidden = true;
+      renderChart(getFilteredEvents());
+    });
+    chartEls.back.addEventListener("click", () => {
+      const prev = state.rangeHistory.pop();
+      if (prev) applyRange(prev);
+    });
+    chartEls.legend.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-key]");
+      if (!btn || !chartModel) return;
+      const key = btn.getAttribute("data-key");
+      if (key === OTHER_KEY) return;
+      const field = chartModel.spec.field;
+      if (!field) {
+        const group = document.getElementById("fsStatusChips");
+        state.status = key === "failed" ? "failed" : "ok";
+        setSegActive(group, group.querySelector('[data-status="' + state.status + '"]'));
+        renderTimeline();
+      } else if (FACETS.includes(field)) {
+        setFacet(field, key, btn.textContent);
+      } else {
+        // Page and other non-facet fields filter through the search box.
+        els.search.value = key;
+        state.search = key;
+        renderTimeline();
+      }
+    });
+    chartEls.plot.addEventListener("mousemove", (e) => {
+      const hit = e.target.closest(".hit");
+      if (!hit) {
+        chartEls.tip.hidden = true;
+        return;
+      }
+      showChartTip(Number(hit.getAttribute("data-i")), e.clientX);
+    });
+    chartEls.plot.addEventListener("mouseleave", () => (chartEls.tip.hidden = true));
+    chartEls.plot.addEventListener("click", (e) => {
+      const hit = e.target.closest(".hit");
+      if (!hit) return;
+      chartEls.tip.hidden = true;
+      zoomToBucket(Number(hit.getAttribute("data-i")));
+    });
+    if (window.ResizeObserver) {
+      let lastW = 0;
+      new ResizeObserver(() => {
+        const w = chartEls.plot.clientWidth;
+        if (Math.abs(w - lastW) < 4) return;
+        lastW = w;
+        if (state.chartOn && !state.chartTable && chartModel) drawChart();
+      }).observe(chartEls.plot);
+    }
+    els.detail.addEventListener("click", (e) => {
+      if (!e.target.closest("[data-only-user]")) return;
+      const ev = findSelected();
+      if (ev) setFacet("user", ev.userKey, ev.userLabel);
     });
 
     els.checkAll.addEventListener("change", () => {
@@ -709,6 +1215,8 @@
   }
 
   async function start() {
+    state.groupBy = GROUP_FIELDS[readPref("mcpGroupBy", "")] ? readPref("mcpGroupBy", "") : "";
+    document.getElementById("fsGroupBy").value = state.groupBy;
     bindEvents();
     const link = readHash();
     if (link.site) {

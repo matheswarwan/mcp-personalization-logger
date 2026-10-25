@@ -188,6 +188,7 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.error || "HTTP " + res.status);
       setStatus("Sent. Thank you" + (data.id != null ? " (feedback #" + data.id + ")." : "."), "ok");
+      showThanks(data.id);
       els.message.value = "";
       els.details.value = "";
       try {
@@ -199,6 +200,26 @@
       els.send.disabled = false;
     }
   }
+
+  // Feedback #142: a clear thank-you in place of the form once it is sent.
+  function showThanks(id) {
+    const thanks = document.getElementById("fbThanks");
+    document.getElementById("fbThanksText").textContent =
+      "Your feedback was sent" + (id != null ? " as #" + id : "") + ".";
+    els.form.hidden = true;
+    document.getElementById("fbFooter").hidden = true;
+    thanks.hidden = false;
+    thanks.focus();
+    window.scrollTo(0, 0);
+  }
+
+  document.getElementById("fbAgain").addEventListener("click", () => {
+    document.getElementById("fbThanks").hidden = true;
+    els.form.hidden = false;
+    document.getElementById("fbFooter").hidden = false;
+    setStatus("Ready.");
+    els.message.focus();
+  });
 
   els.kind.addEventListener("click", (e) => {
     const b = e.target.closest("[data-kind]");

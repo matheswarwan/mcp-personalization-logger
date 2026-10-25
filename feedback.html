@@ -32,6 +32,16 @@
         </p>
       </div>
 
+      <section class="fb-thanks" id="fbThanks" role="status" tabindex="-1" hidden>
+        <h2>Thank you</h2>
+        <p id="fbThanksText">Your feedback was sent.</p>
+        <p class="hint">It goes straight to the developer. If you left an email, you may get a reply there.</p>
+        <div class="st-inline">
+          <button class="btn btn-primary" id="fbAgain" type="button">Send more feedback</button>
+          <a class="btn" href="fullscreen.html">Back to Events</a>
+        </div>
+      </section>
+
       <form id="fbForm" novalidate>
         <section class="st-row">
           <div class="st-row-label">
@@ -84,7 +94,7 @@
       </form>
     </main>
 
-    <footer class="st-savebar">
+    <footer class="st-savebar" id="fbFooter">
       <div class="st-footer-status" id="fbStatus" role="status">Ready.</div>
       <button class="btn btn-primary" id="fbSend" type="button">Send feedback</button>
     </footer>

@@ -154,7 +154,7 @@
       exportedAt: options.exportedAt || new Date().toISOString(),
       extensionVersion: options.extensionVersion || "",
       scope: options.scope || "",
-      filters: options.filters || {},
+      filters: maskFilters(options.filters || {}, mask),
       personalDataMasked: mask,
       summary: {
         count: rows.length,
@@ -171,6 +171,16 @@
     };
   }
 
+  /** A user filter names a person (an email or login id), so mask it with the payloads. */
+  function maskFilters(filters, mask) {
+    if (!mask || !Array.isArray(filters.facets)) return filters;
+    return Object.assign({}, filters, {
+      facets: filters.facets.map((f) =>
+        Object.assign({}, f, { value: f.field === "User" ? MASK : maskValue(String(f.value)) })
+      ),
+    });
+  }
+
   function describeFilters(filters) {
     const parts = [];
     if (filters.timeRange) parts.push("time range " + filters.timeRange);
@@ -178,6 +188,9 @@
     if (filters.status && filters.status !== "all") {
       parts.push("status " + filters.status);
     }
+    (filters.facets || []).forEach((f) => {
+      parts.push(String(f.field).toLowerCase() + ' "' + f.value + '"');
+    });
     return parts.length ? parts.join(", ") : "none";
   }
 

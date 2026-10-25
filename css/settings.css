@@ -380,3 +380,37 @@ body {
 .fb-gap {
   margin-top: 12px;
 }
+
+/* Feedback sent (feedback #142) */
+.fb-thanks {
+  margin: 8px 0 24px;
+  padding: 18px 20px;
+  border: 1px solid var(--ok);
+  border-radius: var(--radius);
+  background: var(--ok-soft);
+  outline: none;
+}
+
+.fb-thanks h2 {
+  margin: 0 0 6px;
+  color: var(--ok);
+  font-size: 16px;
+}
+
+.fb-thanks p {
+  margin: 0 0 6px;
+}
+
+.fb-thanks .st-inline {
+  margin-top: 12px;
+}
+
+.fb-thanks[hidden],
+#fbForm[hidden],
+.st-savebar[hidden] {
+  display: none;
+}
+
+.fb-thanks a.btn {
+  text-decoration: none;
+}

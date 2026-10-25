@@ -86,6 +86,7 @@
         </div>
         <div class="seg" id="fsStatusChips" role="group" aria-label="Status">
           <button type="button" data-status="all" class="active">All statuses</button>
+          <button type="button" data-status="ok">OK</button>
           <button type="button" data-status="failed">Failed</button>
         </div>
         <div class="seg ex-sort" role="group" aria-label="Sort">
@@ -95,10 +96,42 @@
         <span class="ex-muted" id="fsFilteredStat">0 shown</span>
       </section>
 
+      <section class="ex-facets" aria-label="More filters and grouping">
+        <label class="ex-facet"><span>User</span><select class="input" id="fsFilterUser" data-facet="user"></select></label>
+        <label class="ex-facet"><span>Action</span><select class="input" id="fsFilterAction" data-facet="action"></select></label>
+        <label class="ex-facet"><span>Page type</span><select class="input" id="fsFilterPageType" data-facet="pageType"></select></label>
+        <label class="ex-facet"><span>SDK</span><select class="input" id="fsFilterSdk" data-facet="sdk"></select></label>
+        <span class="ex-facets-sep" aria-hidden="true"></span>
+        <label class="ex-facet"><span>Group by</span>
+          <select class="input" id="fsGroupBy">
+            <option value="">Nothing (by day)</option>
+            <option value="user">User</option>
+            <option value="action">Action</option>
+            <option value="pageType">Page type</option>
+            <option value="page">Page</option>
+            <option value="sdk">SDK</option>
+          </select>
+        </label>
+        <button class="btn btn-sm" id="BtnFsChart" type="button" aria-pressed="true" title="Show or hide the events over time chart">Chart</button>
+        <button class="btn btn-sm btn-ghost" id="BtnFsClearFilters" type="button" hidden>Clear filters</button>
+      </section>
+
       <main class="ex-main">
         <nav class="ex-sites" id="fsSiteTabs" aria-label="Captured sites"></nav>
 
         <section class="ex-stream" aria-labelledby="fsStreamSubtitle">
+          <div class="ex-chart" id="fsChart" aria-label="Events over time">
+            <div class="ex-chart-head">
+              <strong id="fsChartTitle">Events over time</strong>
+              <span class="ex-muted" id="fsChartScale"></span>
+              <span class="app-spacer"></span>
+              <button class="btn btn-sm btn-ghost" id="BtnFsChartBack" type="button" hidden>Back to the previous range</button>
+              <button class="btn btn-sm btn-ghost" id="BtnFsChartTable" type="button" aria-pressed="false">Table</button>
+            </div>
+            <div class="ex-chart-plot" id="fsChartPlot"></div>
+            <div class="ex-chart-legend" id="fsChartLegend"></div>
+            <div class="ex-chart-tip" id="fsChartTip" role="tooltip" hidden></div>
+          </div>
           <div class="ex-selbar" id="fsSelBar" hidden>
             <strong id="fsSelCount">0 events selected</strong>
             <span class="ex-muted" id="fsSelHidden"></span>
