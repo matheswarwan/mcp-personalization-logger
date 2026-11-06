@@ -6,6 +6,10 @@ const DEFAULT_MCP_SETTINGS = {
   // Sites (domains) where Redirect and Edit apply; subdomains included.
   // "*" means every site. Empty means the tools do nothing.
   sites: [],
+  // On the sites, pages that never load the SDK get it injected (the
+  // replacement URL or the edited copy), like the Salesforce Interactions SDK
+  // Launcher's "Inject SDK".
+  injectWhenMissing: true,
   forceSdk: {
     enabled: false,
     url: "",
@@ -27,14 +31,29 @@ const DEFAULT_MCP_SETTINGS = {
   },
 };
 
-// http or https, optional port, evergage.js or evergage.min.js (same for c360a).
+// The SDK by file name on any host, over http or https: cdn.evgnet.com,
+// cdn.evergage.com, cdn.c360a.salesforce.com and self-hosted copies.
+// Personalization: evergage.js, evergage.min.js, evergageTrackingOnly(.min).js,
+// evergageSmall(.min).js. Data Cloud: c360a.js, c360a.min.js.
 const SDK_SCRIPT_REGEXES = [
-  "^https?://cdn\\.evgnet\\.com(:[0-9]+)?/[^?#]*evergage(\\.min)?\\.js([?#].*)?$",
-  "^https?://cdn\\.c360a\\.salesforce\\.com(:[0-9]+)?/[^?#]*c360a(\\.min)?\\.js([?#].*)?$",
+  "^https?://[^/?#]+/([^?#]*/)?evergage(TrackingOnly|Small)?(\\.min)?\\.js([?#].*)?$",
+  "^https?://[^/?#]+/([^?#]*/)?c360a(\\.min)?\\.js([?#].*)?$",
 ];
+
+/** True when a script URL is the Personalization or Data Cloud SDK. */
+function isSdkScriptUrl(url) {
+  const value = String(url || "");
+  return SDK_SCRIPT_REGEXES.some((r) => new RegExp(r).test(value));
+}
 
 const DNR_RULE_ID_ALLOW_TARGET = 91020;
 const DNR_RULE_ID_STRIP_CSP = 91030;
+// After the extension injected the SDK into a tab: block the page's own SDK
+// requests in that tab, so a tag manager that adds it later does not run a
+// second copy. One rule per SDK regex, listing the tabs (condition.tabIds);
+// a tab leaves the list when it navigates.
+const DNR_RULE_ID_TAB_BLOCK_BASE = 91040;
+const DNR_TAB_BLOCK_PRIORITY = 55;
 
 // Chrome caps URLs at 2 MB; base64 adds a third, so stay well below.
 const MAX_FETCHED_SDK_CHARS = 1400000;
@@ -170,6 +189,7 @@ function mergeSettings(raw) {
   const incoming = raw && typeof raw === "object" ? raw : {};
   return {
     sites: parseSiteList(incoming.sites),
+    injectWhenMissing: incoming.injectWhenMissing !== false,
     forceSdk: {
       ...DEFAULT_MCP_SETTINGS.forceSdk,
       ...(incoming.forceSdk || {}),
@@ -328,12 +348,37 @@ function buildSdkDnrRules(settings) {
   return { addRules, removeRuleIds: [...new Set(removeRuleIds)] };
 }
 
+/**
+ * Block the SDK in the given tabs (see DNR_RULE_ID_TAB_BLOCK_BASE). It
+ * outranks the redirect rules (50) but not the rule that lets the replacement
+ * URL through (60), so the injected replacement still loads.
+ */
+function buildTabBlockRules(tabIds) {
+  const tabs = [...new Set(tabIds || [])].filter((t) => Number.isInteger(t) && t >= 0);
+  const removeRuleIds = SDK_SCRIPT_REGEXES.map((_, i) => DNR_RULE_ID_TAB_BLOCK_BASE + i);
+  const addRules = !tabs.length
+    ? []
+    : SDK_SCRIPT_REGEXES.map((regexFilter, i) => ({
+        id: DNR_RULE_ID_TAB_BLOCK_BASE + i,
+        priority: DNR_TAB_BLOCK_PRIORITY,
+        action: { type: "block" },
+        condition: { regexFilter, resourceTypes: ["script"], tabIds: tabs },
+      }));
+  return { addRules, removeRuleIds };
+}
+
+function isTabBlockRuleId(id) {
+  return id >= DNR_RULE_ID_TAB_BLOCK_BASE && id < DNR_RULE_ID_TAB_BLOCK_BASE + SDK_SCRIPT_REGEXES.length;
+}
+
 async function syncSdkDnrRules(settings) {
   if (!chrome.declarativeNetRequest) {
     console.warn("declarativeNetRequest API unavailable");
     return;
   }
   const { addRules, removeRuleIds } = buildSdkDnrRules(settings);
+  // Per-tab blocks belong to the settings they were made for.
+  removeRuleIds.push(...buildTabBlockRules([]).removeRuleIds);
   try {
     await chrome.declarativeNetRequest.updateSessionRules({
       removeRuleIds,
@@ -350,6 +395,9 @@ if (typeof globalThis !== "undefined") {
   globalThis.MCP_SETTINGS_KEY = MCP_SETTINGS_KEY;
   globalThis.DEFAULT_MCP_SETTINGS = DEFAULT_MCP_SETTINGS;
   globalThis.SDK_SCRIPT_REGEXES = SDK_SCRIPT_REGEXES;
+  globalThis.isSdkScriptUrl = isSdkScriptUrl;
+  globalThis.buildTabBlockRules = buildTabBlockRules;
+  globalThis.isTabBlockRuleId = isTabBlockRuleId;
   globalThis.isSettingsKey = isSettingsKey;
   globalThis.parseSiteList = parseSiteList;
   globalThis.siteMatches = siteMatches;

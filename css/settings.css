@@ -414,3 +414,9 @@ body {
 .fb-thanks a.btn {
   text-decoration: none;
 }
+
+.st-inject {
+  margin-top: 10px;
+  color: var(--text);
+  font-size: 13px;
+}

@@ -51,11 +51,13 @@
       placeholder: "Load an SDK to begin editing.",
     });
 
-    const dark = window.matchMedia("(prefers-color-scheme: dark)");
+    // Follows the extension theme (js/theme.js), which tracks the system in System mode.
+    const isDark = () =>
+      window.mcpTheme ? window.mcpTheme.isDark() : window.matchMedia("(prefers-color-scheme: dark)").matches;
     const setTheme = () =>
-      editor.setTheme(dark.matches ? "ace/theme/tomorrow_night" : "ace/theme/tomorrow");
+      editor.setTheme(isDark() ? "ace/theme/tomorrow_night" : "ace/theme/tomorrow");
     setTheme();
-    dark.addEventListener("change", setTheme);
+    document.addEventListener("mcp-themechange", setTheme);
     new ResizeObserver(() => editor.resize()).observe(host);
 
     // Set while value is assigned from code, so loads don't count as edits.

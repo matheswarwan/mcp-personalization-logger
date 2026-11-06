@@ -18,6 +18,7 @@ trap cleanup EXIT
 if command -v rsync >/dev/null 2>&1; then
   rsync -a \
     --exclude '.git/' \
+    --exclude '.claude/' \
     --exclude '.gitignore' \
     --exclude 'tests/' \
     --exclude 'dist/' \
@@ -34,7 +35,7 @@ if command -v rsync >/dev/null 2>&1; then
 else
   # Fallback without rsync
   cp -a "$ROOT/." "$STAGE/"
-  rm -rf "$STAGE/.git" "$STAGE/tests" "$STAGE/dist" "$STAGE/data-gen" \
+  rm -rf "$STAGE/.git" "$STAGE/.claude" "$STAGE/tests" "$STAGE/dist" "$STAGE/data-gen" \
     "$STAGE/devNotes" "$STAGE/gitImages" "$STAGE/docs" "$STAGE/node_modules" \
     "$STAGE/package.sh" "$STAGE/.gitignore"
   find "$STAGE" -name '.DS_Store' -delete

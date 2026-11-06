@@ -25,6 +25,7 @@
     stepEdit: document.getElementById("StepEdit"),
     stepUse: document.getElementById("StepUse"),
     sitesInput: document.getElementById("sitesInput"),
+    injectWhenMissing: document.getElementById("injectWhenMissing"),
     openUrl: document.getElementById("openUrl"),
     openTabHosts: document.getElementById("openTabHosts"),
     openTabHostList: document.getElementById("openTabHostList"),
@@ -61,6 +62,7 @@
   function collectSettings() {
     return {
       sites: parseSiteList(els.sitesInput.value),
+      injectWhenMissing: !!els.injectWhenMissing.checked,
       forceSdk: {
         enabled: !!els.forceEnabled.checked,
         url: els.forceUrl.value.trim(),
@@ -80,6 +82,7 @@
   function snapshotOf(settings) {
     return JSON.stringify({
       sites: settings.sites,
+      injectWhenMissing: settings.injectWhenMissing,
       forceSdk: settings.forceSdk,
       localEdit: {
         enabled: settings.localEdit.enabled,
@@ -152,8 +155,8 @@
 
   const MODE_HINTS = {
     off: "Nothing is changed. Every site loads the SDK normally.",
-    redirect: "SDK requests from the sites below load your replacement URL instead.",
-    edit: "When the sites below load the SDK, your edited copy runs in its place.",
+    redirect: "SDK requests from the sites below load your replacement URL instead, and pages without the SDK get it injected.",
+    edit: "On the sites below, your edited copy runs in place of the SDK, and pages without the SDK get it injected.",
   };
 
   /**
@@ -185,6 +188,7 @@
     const s = mergeSettings(settings);
     lastFetched = s.forceSdk.fetched || null;
     els.sitesInput.value = s.sites.join(", ");
+    els.injectWhenMissing.checked = s.injectWhenMissing;
     els.openUrl.value = s.localEdit.openUrl || els.openUrl.value || "";
     els.forceEnabled.checked = !!s.forceSdk.enabled;
     els.forceUrl.value = s.forceSdk.url || "";
@@ -658,6 +662,7 @@
       renderOpenTabHosts();
     });
     els.openUrl.addEventListener("input", updateDirtyBadge);
+    els.injectWhenMissing.addEventListener("change", updateDirtyBadge);
     els.forceUrl.addEventListener("input", updateForceUrlWarning);
     ["change", "input"].forEach((evt) => {
       els.forceUrl.addEventListener(evt, updateDirtyBadge);

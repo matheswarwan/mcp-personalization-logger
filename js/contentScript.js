@@ -1,12 +1,12 @@
-// Runs at document_start. Requests local-edit SDK injection when enabled, and
-// writes notes to the page's console while SDK Tools is on, so it is clear the
+// Runs at document_start, after sdk-config.js (isSdkScriptUrl). Requests
+// local-edit SDK injection when enabled, injects the SDK into listed pages
+// that never load it (injectWhenMissing), and writes notes to the page's console while SDK Tools is on, so it is clear the
 // session runs replaced SDK code (or why it does not). The same notes go to
 // the background as a page report, which Feedback sends along.
 (function () {
   const TAG = "%c MCP Logger %c ";
   const TAG_STYLE = "background:#0b6aa2;color:#fff;border-radius:3px;font-weight:bold";
-  const SDK_SCRIPT = 'script[src*="cdn.evgnet.com"], script[src*="cdn.c360a.salesforce.com"]';
-  const SDK_URL_RE = /^https?:\/\/(cdn\.evgnet\.com|cdn\.c360a\.salesforce\.com)[:/]/;
+  const isSdkUrl = (url) => isSdkScriptUrl(url);
 
   const report = {
     reportId: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
@@ -15,6 +15,7 @@
     status: null,
     notes: [],
     sdkScripts: [],
+    injected: null,
     ranId: null,
     checkedAt: null,
   };
@@ -33,8 +34,24 @@
     sendReport();
   }
 
+  /** SDK script tags on the page, not counting the one SDK Tools injected. */
   function sdkScripts() {
-    return [...document.querySelectorAll(SDK_SCRIPT)].map((s) => s.src).slice(0, 5);
+    return [...document.querySelectorAll("script[src]")]
+      .filter((s) => !s.hasAttribute("data-mcp-sdk-tools-injected") && isSdkUrl(s.src))
+      .map((s) => s.src)
+      .slice(0, 5);
+  }
+
+  /** The page has asked for the SDK: a tag, or a request a tag manager made and removed. */
+  function pageLoadsSdk() {
+    if (sdkScripts().length) return true;
+    try {
+      return performance
+        .getEntriesByType("resource")
+        .some((e) => e.initiatorType === "script" && isSdkUrl(e.name));
+    } catch (_) {
+      return false;
+    }
   }
 
   function describe(status) {
@@ -65,7 +82,7 @@
     "error",
     (e) => {
       const el = e.target;
-      if (el && el.tagName === "SCRIPT" && SDK_URL_RE.test(el.src || "")) onScriptError(e);
+      if (el && el.tagName === "SCRIPT" && el.src) onScriptError(e);
     },
     true
   );
@@ -80,7 +97,8 @@
       try {
         target = status.mode === "redirect" ? new URL(status.url).origin : "";
       } catch (_) {}
-      if (!(SDK_URL_RE.test(uri) || uri.indexOf("data") === 0 || (target && uri.indexOf(target) === 0))) return;
+      const injectedEval = report.injected && uri === "eval";
+      if (!(isSdkUrl(uri) || injectedEval || uri.indexOf("data") === 0 || (target && uri.indexOf(target) === 0))) return;
       if (blocked) return;
       blocked = e;
       const meta = document.querySelector('meta[http-equiv="Content-Security-Policy" i]');
@@ -94,16 +112,47 @@
       );
     };
     onScriptError = (e) => {
+      const el = e.target;
+      const ours = el.hasAttribute("data-mcp-sdk-tools-injected");
+      if (!ours && !isSdkUrl(el.src)) return;
+      if (!ours && report.injected) {
+        // The per-tab block: the page added its own SDK after the injection.
+        log("info", "The page then requested the SDK itself (" + el.src + "). SDK Tools blocked it, so only the injected SDK runs.");
+        return;
+      }
       if (blocked) return;
       blocked = e;
       log(
         "error",
-        status.mode === "redirect" && status.servedBy === "redirect"
+        ours || (status.mode === "redirect" && status.servedBy === "redirect")
           ? "The replacement SDK at " + status.url + " failed to load, so no SDK ran. Check that the server is running and, for https, that the browser trusts its certificate (open the URL in a tab)."
           : "The SDK script " + e.target.src + " failed to load, so nothing ran. Another extension (an ad or tracker blocker) may block cdn.evgnet.com, or the request failed. Try with other extensions turned off."
       );
     };
     early.splice(0).forEach(([kind, e]) => (kind === "csp" ? onViolation(e) : onScriptError(e)));
+
+    if (status.injectWhenMissing && status.servedBy !== "inject" && !status.fetchError) {
+      onDomReady(() => {
+        if (pageLoadsSdk()) return;
+        chrome.runtime.sendMessage({ type: "MCP_INJECT_MISSING_SDK" }, (res) => {
+          void chrome.runtime.lastError;
+          if (!res || !res.ok || res.skipped) {
+            if (res && !res.ok) log("error", "SDK Tools could not inject the SDK: " + res.error);
+            return;
+          }
+          if (!res.injected) {
+            if (res.error) log("error", "SDK Tools injected the SDK, but it failed to run: " + res.error);
+            return;
+          }
+          report.injected = { src: res.src || "", at: Date.now() };
+          log(
+            "info",
+            "This page does not load the SDK, so SDK Tools injected " +
+              (status.mode === "edit" ? "your edited copy" : res.src ? res.src : "the replacement SDK") + "."
+          );
+        });
+      });
+    }
 
     window.addEventListener("load", () => {
       // Give tag managers a moment to add the SDK tag.
@@ -116,8 +165,19 @@
           sendReport();
           return;
         }
+        if (report.injected) {
+          // Injected code that ran sets ranId; a missing one means it threw.
+          log("warn", "SDK Tools injected the SDK, but it did not finish running. Look above for an error.");
+          sendReport();
+          return;
+        }
         if (!report.sdkScripts.length) {
-          log("info", "This page has not loaded the SDK from cdn.evgnet.com or cdn.c360a.salesforce.com, so SDK Tools replaced nothing.");
+          log(
+            "info",
+            status.injectWhenMissing
+              ? "This page has not loaded the SDK, and SDK Tools did not inject it. Look above for an error."
+              : "This page has not loaded the SDK, so SDK Tools replaced nothing. Turn on \"Inject the SDK into pages that don't load it\" in SDK Tools to add it."
+          );
           return;
         }
         log(
@@ -127,6 +187,11 @@
         );
       }, 3000);
     });
+  }
+
+  function onDomReady(fn) {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn, { once: true });
+    else fn();
   }
 
   /** SDK Tools is on, but this site is not in Sites: say so if the page loads the SDK. */

@@ -21,7 +21,7 @@ A Chrome extension that logs every event a page sends to Salesforce Marketing Cl
 3. The popup lists the latest events across all sites (filter by site with the chips). Click an event to see its payload, copy it, or open it in the Explorer. A strip at the top says when Redirect or Edit SDK is on. **Decode a base64 payload** decodes an `event=` value you paste.
 4. **Open Explorer** shows every event: sites on the left (or All sites), the event stream in the middle (time to the millisecond, status, action, page) and the selected event's details and payload on the right. Filter by text, time range and status (All, OK or Failed), and sort newest or oldest first. The second row filters by **User** (the Evergage user id, or the anonymous id before login; the Data Cloud individual or device id), **Action**, **Page type** and **SDK**, each list showing how many events have that value. **Group by** User, Action, Page type, Page or SDK turns the stream into collapsible groups with their event count, failures and time span; **Only this** on a group filters to it. The **chart** above the stream shows events over time, stacked by the grouping (or by OK and Failed): hover a bar for its counts, click it to zoom to that period (**Back** returns), click a legend entry to filter to it, and **Table** shows the same numbers as a table. The event details have **Only this user**. Keys: `/` to search, `j`/`k` or the arrow keys to move between events, `Esc` to leave the search box.
 
-Both `GET` requests with an encoded payload and `POST` requests with form data or a raw body are supported. The pages follow the system's light or dark mode.
+Both `GET` requests with an encoded payload and `POST` requests with form data or a raw body are supported. The pages follow the system's light or dark mode, or pick **Light** or **Dark** with the theme switch in the top bar (in the popup, at the bottom). The choice applies to every page of the extension.
 
 <img src="gitImages/popup.png" alt="Popup with recent events" width="320"/>
 
@@ -48,7 +48,7 @@ Open **SDK Tools** from the popup or the Explorer's top bar. Pick a **Mode** (Of
 
 **Sites:** the tools only apply on the domains you list (subdomains included, so `example.com` covers `www.example.com`; `*` means every site). Every other site loads the SDK normally. Chips under the box add sites from your open tabs.
 
-**Redirect SDK:** requests the listed sites make for `evergage(.min).js` on `cdn.evgnet.com` or `c360a(.min).js` on `cdn.c360a.salesforce.com`, over http or https, go to the URL you enter instead:
+**Redirect SDK:** requests the listed sites make for the SDK, over http or https, go to the URL you enter instead. The SDK is matched by file name on any host (`cdn.evgnet.com`, `cdn.evergage.com`, `cdn.c360a.salesforce.com` or a self-hosted copy): `evergage.js`, `evergage.min.js`, `evergageTrackingOnly(.min).js`, `evergageSmall(.min).js` and `c360a(.min).js`.
 
 - An https URL, or an http URL on `localhost` or `127.0.0.1`, loads directly.
 - Chrome blocks any other http script on an https page (mixed content). For those URLs the extension fetches the file when you save and serves its contents in place of the SDK, so it still runs where the SDK tag is. Click **Fetch again** after changing the file. Files up to 1,400 KB work this way.
@@ -56,7 +56,12 @@ Open **SDK Tools** from the popup or the Explorer's top bar. Pick a **Mode** (Of
 
 **Page CSP:** a site's Content Security Policy usually allows `cdn.evgnet.com` but not the replacement (a `data:` URL, `localhost` or another host), so the browser would refuse to run it. While Redirect or Edit is on, the extension removes the `Content-Security-Policy` header from the listed sites' pages. Switching the mode off puts it back on the next load. A CSP set in a `<meta>` tag can't be removed this way.
 
-**Edit SDK:** load an SDK from a URL or a file, edit it, and compare it with the original or download it. Enter the **Page to open** and click **Inject and open**: the edited SDK is saved, the page's site is added to Sites if needed, and the page opens in a new tab. On the listed sites, the SDK request is answered with your edited copy, so it runs exactly where the SDK tag is, until you switch the mode off. Pages that never load the SDK are left alone.
+**Edit SDK:** load an SDK from a URL or a file, edit it, and compare it with the original or download it. Enter the **Page to open** and click **Inject and open**: the edited SDK is saved, the page's site is added to Sites if needed, and the page opens in a new tab. On the listed sites, the SDK request is answered with your edited copy, so it runs exactly where the SDK tag is, until you switch the mode off.
+
+**Inject into pages without the SDK** (under Sites, on by default): in both modes, a page on a listed site that has no SDK tag once its HTML is parsed gets the SDK added, as a script tag for the replacement URL or by running your edited copy, like the Salesforce Interactions SDK Launcher's Inject SDK.
+If the page then requests the SDK itself (a tag manager adding it late), that request is blocked in that tab, so only one copy runs.
+The block ends when the tab loads another page.
+Turn the option off to leave pages without the SDK alone.
 
 **Editor:** the Edit box is [Ace](https://ace.c9.io/) (bundled in `vendor/ace`, BSD licence): JavaScript highlighting, search (Ctrl+F or Cmd+F), go to line (Ctrl+L), and a syntax check. A syntax error shows above the editor (click it to jump there), and Save or Inject and open asks first, because one syntax error stops the whole SDK from running.
 

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SDK Tools - MCP Logger</title>
     <link rel="stylesheet" href="./css/theme.css" />
+    <script src="./js/theme.js"></script>
     <link rel="stylesheet" href="./css/settings.css" />
   </head>
   <body>
@@ -19,6 +20,7 @@
         <a href="feedback.html?from=sdk-tools">Feedback</a>
       </nav>
       <div class="app-spacer"></div>
+      <div data-theme-switch></div>
       <span class="app-credit">Created by <a href="https://www.linkedin.com/in/mathesk/" target="_blank" rel="noopener noreferrer">Mathes</a>, Ateko</span>
     </header>
 
@@ -69,6 +71,16 @@
             <code>example.com</code> covers <code>www.example.com</code>. Full
             URLs are fine. <code>*</code> means every site.
           </p>
+          <label class="st-wrap st-inject">
+            <input type="checkbox" id="injectWhenMissing" checked />
+            Inject the SDK into pages that don't load it
+          </label>
+          <p class="hint">
+            Pages on these sites that have no SDK tag by the time the HTML is
+            parsed get the replacement (or your edited copy) added. If the page
+            then requests the SDK itself, that request is blocked so only one
+            copy runs.
+          </p>
           <div class="st-tab-hosts" id="openTabHosts" hidden>
             <span class="hint">Add from open tabs:</span>
             <span id="openTabHostList"></span>
@@ -110,9 +122,11 @@
             </div>
             <ul class="st-facts">
               <li>
-                Replaces <code>evergage.min.js</code> and <code>evergage.js</code>
-                from <code>cdn.evgnet.com</code>, and <code>c360a.min.js</code>
-                from <code>cdn.c360a.salesforce.com</code>, over http or https.
+                Replaces <code>evergage.js</code>, <code>evergage.min.js</code>,
+                <code>evergageTrackingOnly.min.js</code> and
+                <code>evergageSmall.min.js</code> (from <code>cdn.evgnet.com</code>,
+                <code>cdn.evergage.com</code> or any other host), and
+                <code>c360a.min.js</code>, over http or https.
               </li>
               <li>
                 https URLs and http URLs on <code>localhost</code> load directly.
@@ -203,7 +217,8 @@
             <p class="hint">
               Saves first and adds the page's site to Sites if needed. Your copy
               then replaces the SDK on every page load on those sites until you
-              switch the mode off. Pages that never load the SDK are left alone.
+              switch the mode off. Pages that never load the SDK get your copy
+              injected, unless you turn that off under Sites.
             </p>
           </div>
         </section>

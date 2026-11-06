@@ -313,9 +313,11 @@ function pageSdkStatus(settings, hostname) {
   if (mode === "off") return { mode: "off" };
   // On, but not here: the content script notes it if the page loads the SDK.
   if (!siteMatches(settings.sites, hostname)) return { mode: "off", unlisted: mode };
+  const injectWhenMissing = settings.injectWhenMissing !== false;
   if (mode === "edit") {
     return {
       mode,
+      injectWhenMissing,
       servedBy: editServedByRedirect(settings) ? "redirect" : "inject",
       id: sdkFingerprint(local.edited),
       savedAt: local.savedAt || null,
@@ -324,6 +326,7 @@ function pageSdkStatus(settings, hostname) {
   const fetched = needsFetchedSdk(force.url) ? force.fetched : null;
   return {
     mode,
+    injectWhenMissing,
     url: force.url,
     servedBy: fetched ? "fetched" : "redirect",
     fetchError: fetched && fetched.error ? fetched.error : "",
@@ -397,6 +400,102 @@ async function injectLocalSdk(tabId, pageUrl) {
 
   return { injected: true, status };
 }
+
+/**
+ * The page on a listed site has not loaded the SDK by DOMContentLoaded:
+ * inject it (the replacement URL as a script tag, or the edited or fetched
+ * code), and block the page's own SDK in this tab so a late tag does not run
+ * a second copy.
+ */
+async function injectMissingSdk(tabId, frameId, pageUrl) {
+  const settings = await readMcpSettings();
+  let hostname = "";
+  try {
+    hostname = new URL(pageUrl || "").hostname;
+  } catch (_) {}
+  const status = pageSdkStatus(settings, hostname);
+  if (status.mode === "off" || !status.injectWhenMissing || status.servedBy === "inject") {
+    return { injected: false, status };
+  }
+
+  let src = "";
+  let code = "";
+  if (status.mode === "edit") {
+    code = withSdkBanner(settings.localEdit.edited, { mode: "edit", savedAt: settings.localEdit.savedAt });
+  } else if (status.servedBy === "fetched") {
+    const fetched = settings.forceSdk.fetched;
+    if (!fetched || !fetched.code) return { injected: false, status, error: status.fetchError || "not fetched" };
+    code = withSdkBanner(fetched.code, { mode: "redirect", url: status.url, savedAt: fetched.at });
+  } else {
+    src = new URL(String(status.url).trim()).toString();
+  }
+
+  await updateTabBlock(tabId, true);
+
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId, frameIds: [frameId || 0] },
+    world: "MAIN",
+    injectImmediately: true,
+    func: (scriptSrc, sdkCode) => {
+      if (window.__MCP_SDK_TOOLS_INJECTED__) return { skipped: true };
+      window.__MCP_SDK_TOOLS_INJECTED__ = true;
+      if (scriptSrc) {
+        const s = document.createElement("script");
+        s.src = scriptSrc;
+        s.setAttribute("data-mcp-sdk-tools-injected", "");
+        // Keep the order of a parser-inserted tag relative to later injections.
+        s.async = false;
+        (document.head || document.documentElement).appendChild(s);
+        return { ok: true };
+      }
+      try {
+        // eval is subject to the page CSP; the CSP header is removed on the
+        // listed sites while a tool is on (see buildSdkDnrRules).
+        (0, eval)(sdkCode);
+        return { ok: true };
+      } catch (err) {
+        console.error("[MCP Logger] SDK Tools could not run the injected SDK", err);
+        return { error: String(err && err.message ? err.message : err) };
+      }
+    },
+    args: [src, code],
+  });
+  const out = (result && result.result) || {};
+  return { injected: !!out.ok, skipped: !!out.skipped, error: out.error || "", src, status };
+}
+
+let tabBlockWrite = Promise.resolve();
+
+/** Add a tab to, or take it off, the per-tab SDK block. Writes run in order. */
+function updateTabBlock(tabId, blocked) {
+  const run = tabBlockWrite.then(async () => {
+    const current = await chrome.declarativeNetRequest.getSessionRules();
+    const rule = current.find((r) => isTabBlockRuleId(r.id));
+    const tabs = new Set((rule && rule.condition.tabIds) || []);
+    if (blocked === tabs.has(tabId)) return;
+    if (blocked) tabs.add(tabId);
+    else tabs.delete(tabId);
+    await chrome.declarativeNetRequest.updateSessionRules(buildTabBlockRules([...tabs]));
+  });
+  tabBlockWrite = run.catch(() => {});
+  return run;
+}
+
+function clearTabBlockRules(tabId) {
+  if (typeof tabId !== "number" || tabId < 0) return Promise.resolve();
+  return updateTabBlock(tabId, false).catch((e) => console.warn("Could not clear the tab SDK block", e));
+}
+
+// A new document in the tab: the previous page's injection no longer applies.
+// onBeforeRequest for the main frame fires before the new page can request
+// the SDK.
+chrome.webRequest.onBeforeRequest.addListener(
+  (details) => {
+    clearTabBlockRules(details.tabId);
+  },
+  { urls: ["<all_urls>"], types: ["main_frame"] }
+);
+chrome.tabs.onRemoved.addListener((tabId) => clearTabBlockRules(tabId));
 
 /**
  * Switch Redirect and Edit off (the edited SDK, URL and sites are kept), then
@@ -501,6 +600,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // From the content script, sender.url is the page being loaded.
     const pageUrl = message.url || sender.url || (sender.tab && sender.tab.url) || "";
     injectLocalSdk(tabId, pageUrl)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((err) =>
+        sendResponse({ ok: false, error: String(err && err.message ? err.message : err) })
+      );
+    return true;
+  }
+
+  if (type === "MCP_INJECT_MISSING_SDK") {
+    const tabId = sender.tab && sender.tab.id;
+    if (!tabId) {
+      sendResponse({ ok: false, error: "No tab id" });
+      return false;
+    }
+    injectMissingSdk(tabId, sender.frameId, sender.url || sender.tab.url || "")
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((err) =>
         sendResponse({ ok: false, error: String(err && err.message ? err.message : err) })

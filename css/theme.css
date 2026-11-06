@@ -35,8 +35,10 @@
   --bar-h: 44px;
 }
 
+/* Dark tokens: the system is dark and the user did not pick Light, or the
+   user picked Dark (js/theme.js sets data-theme on <html>). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #16181b;
     --bg-subtle: #1c1f23;
@@ -64,6 +66,35 @@
     --json-null: #737b86;
     --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #16181b;
+  --bg-subtle: #1c1f23;
+  --bg-hover: #23272c;
+  --bg-selected: #183243;
+  --border: #2b2f35;
+  --border-strong: #3a4048;
+  --text: #e3e6ea;
+  --text-muted: #a0a7b1;
+  --text-subtle: #737b86;
+  --accent: #4bb0e0;
+  --accent-hover: #6cc1ea;
+  --accent-soft: #173445;
+  --on-accent: #0b1a22;
+  --ok: #4cc38a;
+  --ok-soft: #173326;
+  --err: #f2786a;
+  --err-soft: #3a1f1c;
+  --warn: #e2a64e;
+  --warn-soft: #3a2b14;
+  --json-key: #e3e6ea;
+  --json-string: #7fd3a2;
+  --json-number: #8fb2ff;
+  --json-bool: #d39cf0;
+  --json-null: #737b86;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
 }
 
 *,
@@ -130,8 +161,11 @@ a {
 }
 
 .pp-credit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 12px 8px;
-  text-align: right;
 }
 
 /* App bar */
@@ -545,4 +579,23 @@ textarea.input {
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* Theme switch (js/theme.js) */
+.theme-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  padding: 0;
+}
+
+.theme-switch svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }

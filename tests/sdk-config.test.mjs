@@ -37,8 +37,53 @@ test("SDK regexes match http and https, ports and non-min builds", () => {
   assert.ok(evg.test("http://cdn.evgnet.com/beacon/a/b/scripts/evergage.js?v=2"));
   assert.ok(evg.test("https://cdn.evgnet.com:8443/beacon/a/evergage.min.js"));
   assert.ok(!evg.test("https://cdn.evgnet.com/beacon/a/evergage.min.json"));
-  assert.ok(!evg.test("https://evil.com/cdn.evgnet.com/evergage.min.js"));
   assert.ok(c360.test("https://cdn.c360a.salesforce.com/beacon/c360a/x/scripts/c360a.min.js"));
+});
+
+test("SDK regexes match legacy hosts, self-hosted copies and other builds by file name", () => {
+  const { isSdkScriptUrl } = globalThis;
+  [
+    "https://cdn.evergage.com/beacon/a/b/scripts/evergage.min.js",
+    "https://www.shop.com/static/evergage.min.js",
+    "https://cdn.evgnet.com/beacon/a/b/scripts/evergageTrackingOnly.min.js",
+    "https://cdn.evgnet.com/beacon/a/b/scripts/evergageSmall.min.js",
+    "http://localhost:8080/c360a.js",
+  ].forEach((u) => assert.ok(isSdkScriptUrl(u), u));
+  [
+    "https://cdn.evgnet.com/beacon/a/b/scripts/evergage.extensions.js",
+    "https://cdn.evgnet.com/beacon/a/b/scripts/myevergage.min.js",
+    "https://x.com/evergage.min.js.map",
+    "https://x.com/app.js?src=evergage.min.js",
+    "data:text/javascript,evergage.min.js",
+  ].forEach((u) => assert.ok(!isSdkScriptUrl(u), u));
+});
+
+test("injectWhenMissing defaults on and can be turned off", () => {
+  assert.equal(mergeSettings({}).injectWhenMissing, true);
+  assert.equal(mergeSettings({ injectWhenMissing: false }).injectWhenMissing, false);
+});
+
+test("tab block rules are per tab and rank between redirect and the replacement allow", () => {
+  const { addRules: rules, removeRuleIds } = globalThis.buildTabBlockRules([7, 1987654321, 7]);
+  assert.equal(rules.length, SDK_SCRIPT_REGEXES.length);
+  rules.forEach((r) => {
+    assert.deepEqual(r.condition.tabIds, [7, 1987654321]);
+    assert.equal(r.action.type, "block");
+    assert.ok(globalThis.isTabBlockRuleId(r.id));
+    assert.ok(r.id < 2 ** 31);
+    assert.ok(removeRuleIds.includes(r.id));
+  });
+  // No tabs left: the rules are removed, none added.
+  const empty = globalThis.buildTabBlockRules([]);
+  assert.equal(empty.addRules.length, 0);
+  assert.deepEqual(empty.removeRuleIds, removeRuleIds);
+  const site = buildSdkDnrRules(
+    mergeSettings({ sites: ["a.com"], forceSdk: { enabled: true, url: "http://localhost:1/evergage.min.js" } })
+  ).addRules;
+  const redirect = site.find((x) => x.action.type === "redirect");
+  const allow = site.find((x) => x.action.type === "allow");
+  assert.ok(rules[0].priority > redirect.priority && rules[0].priority < allow.priority);
+  site.forEach((x) => assert.ok(!globalThis.isTabBlockRuleId(x.id)));
 });
 
 test("no sites means no rules", () => {

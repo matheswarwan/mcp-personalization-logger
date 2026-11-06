@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test exporters.test.mjs sdk-config.test.mjs events.test.mjs",
-    "test:smoke": "node extension-smoke.mjs"
+    "test:smoke": "node extension-smoke.mjs",
+    "test:e2e-sdk": "node sdk-inject-e2e.mjs"
   },
   "keywords": [],
   "author": "",
