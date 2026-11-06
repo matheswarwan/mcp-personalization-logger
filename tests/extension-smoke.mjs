@@ -260,9 +260,11 @@ async function run() {
       const hidden = await fsPage.$eval("#fsSelHidden", (el) => el.textContent.trim());
       assert.strictEqual(hidden, "(3 not in this view)");
       await fsPage.click(".fs-event", { modifiers: [] });
-      await fsPage.keyboard.down("Control");
+      // On macOS Ctrl+click opens the context menu (no click event): use Cmd there.
+      const multiKey = process.platform === "darwin" ? "Meta" : "Control";
+      await fsPage.keyboard.down(multiKey);
       await fsPage.click(".fs-event .ex-col-action");
-      await fsPage.keyboard.up("Control");
+      await fsPage.keyboard.up(multiKey);
       assert.strictEqual(await fsPage.$eval("#fsSelCount", (el) => el.textContent.trim()), "4 events selected");
       await fsPage.click('#fsSelBar [data-sel="clear"]');
       assert.strictEqual(await fsPage.$eval("#fsSelBar", (el) => el.hidden), true);

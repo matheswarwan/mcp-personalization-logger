@@ -212,3 +212,17 @@ body {
   gap: 4px;
   margin-top: 6px;
 }
+
+/* The popup is 420px wide: keep the brand and three buttons on one line. */
+.app-bar {
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.app-bar .app-actions {
+  gap: 4px;
+}
+
+.app-bar .btn {
+  padding: 0 8px;
+}

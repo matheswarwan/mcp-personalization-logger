@@ -1,6 +1,6 @@
 # Chrome Web Store listing: privacy practices
 
-Text for the Privacy practices tab, checked against how the code uses each permission (version 0.1.0). Update it when permissions or features change.
+Text for the Privacy practices tab, checked against how the code uses each permission (version 0.2.0). Update it when permissions or features change.
 
 ## Single purpose
 
@@ -10,15 +10,15 @@ Debugging Salesforce Marketing Cloud Personalization and Data Cloud Web SDK impl
 
 ### scripting
 
-Used by the SDK Tools "Edit SDK" feature. A developer loads a copy of the Marketing Cloud Personalization SDK, edits it, and chooses the sites to test it on. If the edited file is too large to serve in place of the SDK request (over 1,400 KB), the extension uses chrome.scripting.executeScript to run the edited copy in pages on those listed sites only. It never runs on other sites, and nothing runs unless the developer turns Edit SDK on.
+Used by SDK Tools ("Redirect SDK" and "Edit SDK"). A developer chooses a replacement SDK URL, or loads and edits a copy of the Marketing Cloud Personalization SDK, and lists the sites to test it on. The extension uses chrome.scripting.executeScript to add that SDK to pages on the listed sites in two cases: the page does not load the SDK itself (the developer can turn this off), or the edited file is too large to serve in place of the SDK request (over 1,400 KB). It never runs on other sites, and nothing runs unless the developer turns a tool on.
 
 ### declarativeNetRequest
 
-Used by SDK Tools to swap the Marketing Cloud Personalization (evergage.min.js) or Data Cloud (c360a.min.js) SDK while a developer tests. Session rules redirect the SDK script request to a URL the developer enters, or to their edited copy, or block it when the edited copy is injected instead. While a tool is on, a rule also removes the Content-Security-Policy header from the listed sites' pages, because a page CSP would otherwise block the replacement SDK. Rules only match those two SDK script URLs (plus the page responses of the listed sites for the CSP header), only on sites the developer has listed, and are removed when the tool is switched off.
+Used by SDK Tools to swap the Marketing Cloud Personalization (evergage.min.js) or Data Cloud (c360a.min.js) SDK while a developer tests. Session rules redirect the SDK script request to a URL the developer enters, or to their edited copy, or block it when the edited copy is injected instead. While a tool is on, a rule also removes the Content-Security-Policy header from the listed sites' pages, because a page CSP would otherwise block the replacement SDK. After the extension adds the SDK to a page that did not load it, a rule blocks that tab's own later SDK requests until the tab navigates, so the SDK does not run twice. Rules only match SDK script files (evergage.js and its builds, c360a.js; plus the page responses of the listed sites for the CSP header), only on sites the developer has listed or tabs where the SDK was added, and are removed when the tool is switched off.
 
 ### declarativeNetRequestWithHostAccess
 
-Chrome requires host access for declarativeNetRequest redirect rules. The extension redirects the SDK script request (from cdn.evgnet.com or cdn.c360a.salesforce.com) to the developer's replacement or edited SDK, only on the sites the developer lists in SDK Tools, and removes the Content-Security-Policy header from those sites' pages while the tool is on. No other requests are redirected or changed.
+Chrome requires host access for declarativeNetRequest redirect rules. The extension redirects the SDK script request (evergage.js or c360a.js from cdn.evgnet.com, cdn.evergage.com, cdn.c360a.salesforce.com or a self-hosted copy) to the developer's replacement or edited SDK, only on the sites the developer lists in SDK Tools, and removes the Content-Security-Policy header from those sites' pages while the tool is on. No other requests are redirected or changed.
 
 ### tabs
 
@@ -34,7 +34,7 @@ Captured events and SDK Tools settings are kept in chrome.storage.local on the d
 
 ### Host permission (<all_urls>)
 
-Personalization and Data Cloud are installed on customers' own websites, which can be any domain. The extension needs to see the event requests these sites send, and to redirect SDK requests on the sites a developer lists in SDK Tools.
+Personalization and Data Cloud are installed on customers' own websites, which can be any domain. The extension needs to see the event requests these sites send, and to redirect SDK requests on, or add the SDK to, the sites a developer lists in SDK Tools.
 
 ## Remote code
 

@@ -550,7 +550,7 @@ body {
 }
 
 @media (prefers-color-scheme: dark) {
-  .ex-chart {
+  :root:not([data-theme="light"]) .ex-chart {
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
@@ -559,6 +559,16 @@ body {
     --series-other: #6f6e69;
     --series-failed: #e66767;
   }
+}
+
+:root[data-theme="dark"] .ex-chart {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-other: #6f6e69;
+  --series-failed: #e66767;
 }
 
 .ex-chart[hidden] {
