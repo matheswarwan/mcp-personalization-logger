@@ -150,18 +150,14 @@
       return;
     }
     els.decodeOut.hidden = false;
-    try {
-      let value = encoded;
-      try {
-        value = decodeURIComponent(value);
-      } catch (_) {}
-      const bytes = Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
-      state.decoded = JSON.parse(new TextDecoder().decode(bytes));
+    const result = McpDecode.decodePayload(encoded);
+    if (result.ok) {
+      state.decoded = result.value;
       showJson(els.decodeOut, state.decoded);
       els.decodeActions.hidden = false;
-    } catch (_) {
+    } else {
       state.decoded = null;
-      els.decodeOut.innerHTML = '<p class="hint err">Not valid base64-encoded JSON.</p>';
+      els.decodeOut.innerHTML = '<p class="hint err">' + escapeHtml(result.error) + "</p>";
       els.decodeActions.hidden = true;
     }
   }
@@ -169,6 +165,12 @@
   document.getElementById("BtnFullScreen").addEventListener("click", () => openPage("fullscreen.html"));
   document.getElementById("BtnSdkTools").addEventListener("click", () => openPage("settings.html"));
   document.getElementById("BtnFeedback").addEventListener("click", () => openPage("feedback.html?from=popup"));
+  document.getElementById("BtnTools").addEventListener("click", () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs && tabs[0];
+      openPage("tools.html" + (tab && /^https?:/.test(tab.url || "") ? "?tab=" + tab.id : ""));
+    });
+  });
   els.sdk.addEventListener("click", () => openPage("settings.html"));
   document.getElementById("BtnSdkStop").addEventListener("click", () => {
     chrome.runtime.sendMessage({ type: "MCP_STOP_SDK_TOOLS", reload: true }, () => renderSdkStatus());

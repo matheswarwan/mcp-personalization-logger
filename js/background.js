@@ -1,4 +1,4 @@
-importScripts("sdk-config.js");
+importScripts("sdk-config.js", "page-tools.js");
 
 console.log("Background js loaded..");
 
@@ -431,7 +431,15 @@ async function injectMissingSdk(tabId, frameId, pageUrl) {
   }
 
   await updateTabBlock(tabId, true);
+  const out = await runSdkInPage(tabId, frameId, src, code);
+  return { injected: !!out.ok, skipped: !!out.skipped, error: out.error || "", src, status };
+}
 
+/**
+ * Add the SDK to the page's MAIN world once: a script tag for an address, or eval for code.
+ * Used by SDK Tools (pages that don't load the SDK) and by "Inject SDK & open page".
+ */
+async function runSdkInPage(tabId, frameId, src, code) {
   const [result] = await chrome.scripting.executeScript({
     target: { tabId, frameIds: [frameId || 0] },
     world: "MAIN",
@@ -458,10 +466,132 @@ async function injectMissingSdk(tabId, frameId, pageUrl) {
         return { error: String(err && err.message ? err.message : err) };
       }
     },
-    args: [src, code],
+    args: [src || "", code || ""],
   });
-  const out = (result && result.result) || {};
-  return { injected: !!out.ok, skipped: !!out.skipped, error: out.error || "", src, status };
+  return (result && result.result) || {};
+}
+
+/* ---------------- Tools page: open a page with the SDK ---------------- */
+
+// Tabs opened with "Inject SDK & open page": { [tabId]: { src, host, url, at } } in session
+// storage (it outlives a service worker restart, not a browser restart, like the DNR rules).
+const OPEN_SDK_KEY = "__mcp_open_sdk__";
+let openSdkWrite = Promise.resolve();
+
+async function readOpenSdkTabs() {
+  const items = await chrome.storage.session.get(OPEN_SDK_KEY);
+  return items[OPEN_SDK_KEY] && typeof items[OPEN_SDK_KEY] === "object" ? items[OPEN_SDK_KEY] : {};
+}
+
+/** Change the registry with fn(tabs) and rebuild the rules. Runs in order. */
+function updateOpenSdkTabs(fn) {
+  const run = openSdkWrite.then(async () => {
+    const tabs = await readOpenSdkTabs();
+    if (fn(tabs) === false) return tabs;
+    await chrome.storage.session.set({ [OPEN_SDK_KEY]: tabs });
+    const entries = Object.keys(tabs).map((id) => ({ tabId: Number(id), src: tabs[id].src, host: tabs[id].host }));
+    await chrome.declarativeNetRequest.updateSessionRules(McpPageTools.buildOpenSdkRules(entries, SDK_SCRIPT_REGEXES));
+    return tabs;
+  });
+  openSdkWrite = run.catch((e) => console.warn("Could not update the open-with-SDK tabs", e));
+  return run;
+}
+
+async function openWithSdk(pageUrl, sdkUrl) {
+  const url = McpPageTools.normalizePageUrl(pageUrl);
+  const src = McpPageTools.normalizeSdkUrl(sdkUrl);
+  // Register the tab and its rules before the page starts loading.
+  const tab = await chrome.tabs.create({ url: "about:blank", active: true });
+  await updateOpenSdkTabs((tabs) => {
+    tabs[tab.id] = { src, host: new URL(url).hostname, url, at: Date.now() };
+  });
+  await chrome.tabs.update(tab.id, { url });
+  return { tabId: tab.id, url, src };
+}
+
+function forgetOpenSdkTab(tabId) {
+  return updateOpenSdkTabs((tabs) => {
+    if (!tabs[tabId]) return false;
+    delete tabs[tabId];
+  });
+}
+
+/** The tab's open-with-SDK entry when its page is still on the same site. */
+async function openSdkFor(tabId, pageUrl) {
+  if (typeof tabId !== "number") return null;
+  const entry = (await readOpenSdkTabs())[tabId];
+  return entry && McpPageTools.sameSite(entry.host, pageUrl) ? entry : null;
+}
+
+/* ---------------- Tools page: SDK info and cookies ---------------- */
+
+async function tabPage(tabId) {
+  const tab = await chrome.tabs.get(tabId);
+  const url = new URL(tab.url || "");
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("This tab is not a web page.");
+  return { tab, url };
+}
+
+async function sdkInfo(tabId) {
+  await tabPage(tabId);
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: McpPageTools.collectSdkInfo,
+    args: [McpPageTools.DOCUMENTED_GETTERS],
+  });
+  return result && result.result;
+}
+
+async function siteCookies(tabId) {
+  const { url } = await tabPage(tabId);
+  // Every cookie the page gets, including ones set on a parent domain (.example.com).
+  const cookies = await chrome.cookies.getAll({ url: url.origin + "/" });
+  return {
+    origin: url.origin,
+    cookies: cookies
+      .map((c) => ({
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        path: c.path,
+        secure: c.secure,
+        httpOnly: c.httpOnly,
+        expires: c.session ? null : Math.round((c.expirationDate || 0) * 1000),
+        storeId: c.storeId,
+        sdk: McpPageTools.isSdkCookie(c.name),
+      }))
+      .sort((a, b) => Number(b.sdk) - Number(a.sdk) || a.name.localeCompare(b.name)),
+  };
+}
+
+/**
+ * scope "sdk": the SDK's own cookies (a new anonymous visitor next load).
+ * scope "all": every cookie the page gets, plus its localStorage and sessionStorage.
+ */
+async function clearSiteData(tabId, scope, reload) {
+  const { cookies } = await siteCookies(tabId);
+  const targets = scope === "all" ? cookies : cookies.filter((c) => c.sdk);
+  let removed = 0;
+  for (const c of targets) {
+    const done = await chrome.cookies.remove({ url: McpPageTools.cookieRemoveUrl(c), name: c.name, storeId: c.storeId });
+    if (done) removed++;
+  }
+  let storage = null;
+  if (scope === "all") {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const n = localStorage.length + sessionStorage.length;
+        localStorage.clear();
+        sessionStorage.clear();
+        return n;
+      },
+    });
+    storage = result ? result.result : null;
+  }
+  if (reload) await chrome.tabs.reload(tabId, { bypassCache: true });
+  return { removed, found: targets.length, storage };
 }
 
 let tabBlockWrite = Promise.resolve();
@@ -492,10 +622,19 @@ function clearTabBlockRules(tabId) {
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
     clearTabBlockRules(details.tabId);
+    if (details.tabId >= 0) {
+      readOpenSdkTabs().then((tabs) => {
+        const entry = tabs[details.tabId];
+        if (entry && !McpPageTools.sameSite(entry.host, details.url)) forgetOpenSdkTab(details.tabId);
+      });
+    }
   },
   { urls: ["<all_urls>"], types: ["main_frame"] }
 );
-chrome.tabs.onRemoved.addListener((tabId) => clearTabBlockRules(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => {
+  clearTabBlockRules(tabId);
+  forgetOpenSdkTab(tabId);
+});
 
 /**
  * Switch Redirect and Edit off (the edited SDK, URL and sites are kept), then
@@ -599,7 +738,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     // From the content script, sender.url is the page being loaded.
     const pageUrl = message.url || sender.url || (sender.tab && sender.tab.url) || "";
-    injectLocalSdk(tabId, pageUrl)
+    openSdkFor(tabId, pageUrl)
+      .then(async (entry) => {
+        if (!entry || !sender.tab) return injectLocalSdk(tabId, pageUrl);
+        // Opened from Tools with "Inject SDK & open page": the page's own SDK is blocked
+        // in this tab and the chosen one is added as early as possible.
+        const out = await runSdkInPage(tabId, sender.frameId, entry.src, "");
+        return {
+          injected: !!out.ok,
+          skipped: !!out.skipped,
+          error: out.error || "",
+          status: { mode: "open-sdk", url: entry.src, servedBy: "redirect", injectWhenMissing: false },
+        };
+      })
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((err) =>
         sendResponse({ ok: false, error: String(err && err.message ? err.message : err) })
@@ -619,6 +770,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ ok: false, error: String(err && err.message ? err.message : err) })
       );
     return true;
+  }
+
+  const reply = (p) => {
+    p.then((result) => sendResponse({ ok: true, ...result })).catch((err) =>
+      sendResponse({ ok: false, error: String(err && err.message ? err.message : err) })
+    );
+    return true;
+  };
+  // Tools page. Only extension pages (not content scripts) may ask.
+  const fromExtensionPage = String(sender.url || "").startsWith(chrome.runtime.getURL(""));
+  if (type === "MCP_OPEN_WITH_SDK" && fromExtensionPage) return reply(openWithSdk(message.url, message.sdkUrl));
+  if (type === "MCP_SDK_INFO" && fromExtensionPage) return reply(sdkInfo(message.tabId).then((info) => ({ info })));
+  if (type === "MCP_LIST_COOKIES" && fromExtensionPage) return reply(siteCookies(message.tabId));
+  if (type === "MCP_CLEAR_SITE_DATA" && fromExtensionPage) {
+    return reply(clearSiteData(message.tabId, message.scope === "all" ? "all" : "sdk", !!message.reload));
   }
 
   if (type === "MCP_CLEAR_EVENTS_KEEP_SETTINGS") {
