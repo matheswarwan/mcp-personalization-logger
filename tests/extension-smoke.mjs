@@ -2,6 +2,7 @@ import puppeteer from "puppeteer";
 import path from "path";
 import { fileURLToPath } from "url";
 import assert from "assert";
+import http from "http";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(__dirname, "..");
@@ -103,7 +104,20 @@ async function seedStorage(page, data) {
   }, data);
 }
 
+// A plain page with no SDK, served locally so the test does not depend on the network.
+function startPlainSite() {
+  return new Promise((resolve) => {
+    const server = http.createServer((req, res) => {
+      res.writeHead(200, { "content-type": "text/html", "cache-control": "no-store" });
+      res.end("<!doctype html><html><head><title>plain</title></head><body>plain</body></html>");
+    });
+    server.listen(0, "127.0.0.1", () => resolve(server));
+  });
+}
+
 async function run() {
+  const site = await startPlainSite();
+  const siteUrl = `http://plain.test:${site.address().port}/`;
   // CHROME_PATH picks a local Chrome/Chromium; HEADLESS=1 runs without a window.
   const browser = await puppeteer.launch({
     headless: process.env.HEADLESS === "1",
@@ -115,6 +129,7 @@ async function run() {
       "--no-first-run",
       "--no-default-browser-check",
       "--window-size=1400,900",
+      "--host-resolver-rules=MAP plain.test 127.0.0.1",
       ...(process.env.CHROME_ARGS || "").split(/\s+/).filter(Boolean),
     ],
   });
@@ -341,7 +356,7 @@ async function run() {
 
     try {
       const page = await browser.newPage();
-      await page.goto("https://example.com", {
+      await page.goto(siteUrl, {
         waitUntil: "domcontentloaded",
         timeout: 20000,
       });
@@ -352,16 +367,17 @@ async function run() {
         );
       });
       assert.strictEqual(injected, false);
-      pass("no Freshbooks beacon injected on example.com");
+      pass("no Freshbooks beacon injected on a plain page");
       await page.close();
     } catch (e) {
-      fail("no Freshbooks beacon injected on example.com", e);
+      fail("no Freshbooks beacon injected on a plain page", e);
     }
 
     await popup.close();
     await fsPage.close();
   } finally {
     await browser.close();
+    site.close();
   }
 
   if (failures.length) {

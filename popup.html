@@ -39,6 +39,11 @@
 
     <div class="pp-list" id="eventList" role="list"></div>
 
+    <div class="pp-tools">
+      <button class="btn btn-sm" id="BtnTools" type="button" title="Decode a payload, open a page with the SDK, read the SDK on this tab, clear its cookies">Tools for this tab</button>
+      <span class="pp-tools-text">SDK info, cookies, open with SDK</span>
+    </div>
+
     <details class="pp-decode" id="decodeSection">
       <summary>Decode a base64 payload</summary>
       <textarea
@@ -46,7 +51,7 @@
         id="atob"
         rows="3"
         spellcheck="false"
-        placeholder="Paste the event= value from a beacon URL"
+        placeholder="Paste a beacon URL, the event= value or JSON"
       ></textarea>
       <div class="pp-decode-out" id="json" hidden></div>
       <div class="pp-decode-actions" id="bd-clipboard" hidden>
@@ -61,6 +66,7 @@
     <script src="./js/json-viewer.js"></script>
     <script src="./js/sdk-config.js"></script>
     <script src="./js/events.js"></script>
+    <script src="./js/decode.js"></script>
     <script src="./popup.js"></script>
   </body>
 </html>

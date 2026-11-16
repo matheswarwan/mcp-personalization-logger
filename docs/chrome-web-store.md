@@ -1,6 +1,6 @@
 # Chrome Web Store listing: privacy practices
 
-Text for the Privacy practices tab, checked against how the code uses each permission (version 0.2.0). Update it when permissions or features change.
+Text for the Privacy practices tab, checked against how the code uses each permission (version 0.3.0). Update it when permissions or features change.
 
 ## Single purpose
 
@@ -12,9 +12,17 @@ Debugging Salesforce Marketing Cloud Personalization and Data Cloud Web SDK impl
 
 Used by SDK Tools ("Redirect SDK" and "Edit SDK"). A developer chooses a replacement SDK URL, or loads and edits a copy of the Marketing Cloud Personalization SDK, and lists the sites to test it on. The extension uses chrome.scripting.executeScript to add that SDK to pages on the listed sites in two cases: the page does not load the SDK itself (the developer can turn this off), or the edited file is too large to serve in place of the SDK request (over 1,400 KB). It never runs on other sites, and nothing runs unless the developer turns a tool on.
 
+It is also used by the Tools page, only when the developer clicks a button there: "Inject SDK & open page" adds the SDK script address the developer typed to the page they asked to open, in that new tab; "Read SDK info" reads the values the SDK on the chosen tab exposes (such as its anonymous id and consents) to show them on the Tools page; "Clear all cookies and site storage" clears the chosen tab's localStorage and sessionStorage.
+
 ### declarativeNetRequest
 
 Used by SDK Tools to swap the Marketing Cloud Personalization (evergage.min.js) or Data Cloud (c360a.min.js) SDK while a developer tests. Session rules redirect the SDK script request to a URL the developer enters, or to their edited copy, or block it when the edited copy is injected instead. While a tool is on, a rule also removes the Content-Security-Policy header from the listed sites' pages, because a page CSP would otherwise block the replacement SDK. After the extension adds the SDK to a page that did not load it, a rule blocks that tab's own later SDK requests until the tab navigates, so the SDK does not run twice. Rules only match SDK script files (evergage.js and its builds, c360a.js; plus the page responses of the listed sites for the CSP header), only on sites the developer has listed or tabs where the SDK was added, and are removed when the tool is switched off.
+
+For a tab opened from Tools with "Inject SDK & open page", session rules limited to that tab block the page's own SDK, let the chosen SDK through and remove the page's Content-Security-Policy header, while the tab stays on that site. They are removed when the tab moves to another site or closes.
+
+### cookies
+
+Used by the Tools page, only when the developer clicks a button there, to list the cookies of the site in the tab they chose and to remove them: "Clear SDK cookies" removes the Personalization and Data Cloud SDK cookies (_evga_..., _sfid_...) so the developer can test as a new anonymous visitor; "Clear all cookies and site storage" removes every cookie that page receives. Cookies are shown only on the extension's own page; they are not stored or sent anywhere.
 
 ### declarativeNetRequestWithHostAccess
 

@@ -217,6 +217,18 @@
       const status = res && res.status;
       if (!status) return;
       report.status = status;
+      if (status.mode === "open-sdk") {
+        // Opened from Tools > Open a page with the SDK (the background already injected it).
+        if (res.injected) report.injected = { src: status.url, at: Date.now() };
+        log(
+          res.injected || res.skipped ? "info" : "error",
+          res.injected || res.skipped
+            ? "MCP Logger Tools opened this tab with " + status.url + ". The page's own SDK is blocked in this tab while it stays on this site."
+            : "MCP Logger Tools could not inject " + status.url + ": " + (res.error || "unknown error")
+        );
+        watch({ ...status, mode: "redirect" });
+        return;
+      }
       if (status.mode === "off") {
         if (status.unlisted) watchUnlisted(status.unlisted);
         return;

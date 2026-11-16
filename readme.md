@@ -18,7 +18,7 @@ A Chrome extension that logs every event a page sends to Salesforce Marketing Cl
 
 1. Open a site that uses Marketing Cloud Personalization. Some examples: alc.ca, becu.org, macro.com.ar, lendingclub.com, zebra.com.
 2. When an event is recorded, the icon changes color for a moment.
-3. The popup lists the latest events across all sites (filter by site with the chips). Click an event to see its payload, copy it, or open it in the Explorer. A strip at the top says when Redirect or Edit SDK is on. **Decode a base64 payload** decodes an `event=` value you paste.
+3. The popup lists the latest events across all sites (filter by site with the chips). Click an event to see its payload, copy it, or open it in the Explorer. A strip at the top says when Redirect or Edit SDK is on. **Decode a base64 payload** decodes an `event=` value you paste, and **Tools for this tab** opens the Tools page for the current tab.
 4. **Open Explorer** shows every event: sites on the left (or All sites), the event stream in the middle (time to the millisecond, status, action, page) and the selected event's details and payload on the right. Filter by text, time range and status (All, OK or Failed), and sort newest or oldest first. The second row filters by **User** (the Evergage user id, or the anonymous id before login; the Data Cloud individual or device id), **Action**, **Page type** and **SDK**, each list showing how many events have that value. **Group by** User, Action, Page type, Page or SDK turns the stream into collapsible groups with their event count, failures and time span; **Only this** on a group filters to it. The **chart** above the stream shows events over time, stacked by the grouping (or by OK and Failed): hover a bar for its counts, click it to zoom to that period (**Back** returns), click a legend entry to filter to it, and **Table** shows the same numbers as a table. The event details have **Only this user**. Keys: `/` to search, `j`/`k` or the arrow keys to move between events, `Esc` to leave the search box.
 
 Both `GET` requests with an encoded payload and `POST` requests with form data or a raw body are supported. The pages follow the system's light or dark mode, or pick **Light** or **Dark** with the theme switch in the top bar (in the popup, at the bottom). The choice applies to every page of the extension.
@@ -70,6 +70,15 @@ Turn the option off to leave pages without the SDK alone.
 **Stop:** while a mode is on, **Stop and reload** (in the SDK Tools save bar) or **Stop** (in the popup's SDK strip) switches it off and reloads the open tabs on the listed sites, so they load the real SDK again. Your edited SDK, replacement URL and sites are kept for next time.
 
 An edited file over 1,400 KB is too large to serve that way. Then the CDN SDK is blocked and your copy is injected when the page starts loading instead; it can run after the page's own inline scripts, and a CSP set in a `<meta>` tag can block it.
+
+## Tools
+
+**Tools** (in the top bar, and **Tools for this tab** in the popup) has four parts:
+
+- **Decode a payload:** paste a whole beacon URL, the `event=` value (base64, URL-encoded or base64url), a form body or JSON, and see the JSON. The Explorer's **Decode** button opens it.
+- **Open a page with the SDK:** enter a page and an SDK script (`evergage.min.js`, `c360a.min.js` or a self-hosted copy), then **Inject SDK & open page**. The page opens in a new tab with that SDK, even if the page has none. In that tab the page's own SDK is blocked and its Content-Security-Policy header is removed, while the tab stays on the same site (subdomains included). The site's console says what happened.
+- **SDK on this tab:** **Read SDK info** reads `SalesforceInteractions` and `Evergage` on the chosen tab. It calls their get, is and has functions that take no arguments, such as `getAnonymousId()` and `getConsents()` (marked "doc", documented by Salesforce), shows their values and properties, and lists the other functions without calling them. Functions whose names suggest a server request (recommendations, campaigns, send, fetch) are never called. **Copy as JSON** copies the result.
+- **Cookies on this tab's site:** **Show cookies** lists every cookie the page gets, SDK cookies (`_evga_…`, `_sfid_…`) first. **Clear SDK cookies** makes you a new anonymous visitor; **Clear all cookies and site storage** also removes the other cookies (including ones on a parent domain) and the page's localStorage and sessionStorage. The tab reloads afterwards unless you untick it.
 
 ## Feedback
 

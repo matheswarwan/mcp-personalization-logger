@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tools - MCP Logger</title>
+    <link rel="stylesheet" href="./css/theme.css" />
+    <script src="./js/theme.js"></script>
+    <link rel="stylesheet" href="./css/settings.css" />
+    <link rel="stylesheet" href="./css/tools.css" />
+  </head>
+  <body>
+    <header class="app-bar">
+      <div class="app-brand">
+        <img src="./images/cloud/cloud-32.png" alt="" />
+        MCP Logger
+      </div>
+      <nav class="app-nav" aria-label="Pages">
+        <a href="fullscreen.html">Events</a>
+        <a href="tools.html" aria-current="page">Tools</a>
+        <a href="settings.html">SDK Tools</a>
+        <a href="feedback.html?from=tools">Feedback</a>
+      </nav>
+      <div class="app-spacer"></div>
+      <div data-theme-switch></div>
+      <span class="app-credit">Created by <a href="https://www.linkedin.com/in/mathesk/" target="_blank" rel="noopener noreferrer">Mathes</a>, Ateko</span>
+    </header>
+
+    <main class="st-page">
+      <div class="st-intro">
+        <h1>Tools</h1>
+        <p>Decode a payload, open a page with the SDK, see what the SDK on a page knows, and clear a site's cookies.</p>
+      </div>
+
+      <section class="st-row" id="decode">
+        <div class="st-row-label">
+          <h2>Decode a payload</h2>
+          <p>Paste a beacon URL, the <code>event=</code> value, a form body or JSON.</p>
+        </div>
+        <div class="st-row-body">
+          <textarea class="input mono" id="decodeInput" rows="4" spellcheck="false" placeholder="https://….evergage.com/api2/event/…?event=eyJ… or eyJ…"></textarea>
+          <p class="hint" id="decodeHow" hidden></p>
+          <div class="tl-out" id="decodeOut" hidden></div>
+          <div class="tl-actions" id="decodeActions" hidden>
+            <button class="btn btn-sm" id="BtnDecodeCopy" type="button">Copy JSON</button>
+            <button class="btn btn-sm" id="BtnDecodeDownload" type="button">Download</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="st-row" id="open">
+        <div class="st-row-label">
+          <h2>Open a page with the SDK</h2>
+          <p>Opens the page in a new tab and adds the SDK you choose, even if the page has none.</p>
+        </div>
+        <div class="st-row-body">
+          <label class="field-label" for="openPageUrl">Page</label>
+          <input class="input mono" id="openPageUrl" type="url" spellcheck="false" placeholder="https://www.example.com/product/123" />
+          <label class="field-label tl-gap" for="openSdkUrl">SDK script</label>
+          <input class="input mono" id="openSdkUrl" type="url" spellcheck="false" placeholder="https://cdn.evgnet.com/beacon/<account>/<dataset>/scripts/evergage.min.js" />
+          <p class="hint">
+            The Personalization beacon (<code>evergage.min.js</code>) or the Data Cloud Web SDK
+            (<code>c360a.min.js</code>), or any self-hosted copy. In that tab the page's own SDK is
+            blocked and its Content-Security-Policy header is removed, so only this SDK runs. It
+            stays that way while the tab stays on the same site.
+          </p>
+          <div class="tl-actions">
+            <button class="btn btn-primary" id="BtnOpenWithSdk" type="button">Inject SDK &amp; open page</button>
+            <span class="hint" id="openStatus" role="status"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="st-row" id="tab">
+        <div class="st-row-label">
+          <h2>Tab</h2>
+          <p>The page the two sections below read and change.</p>
+        </div>
+        <div class="st-row-body">
+          <div class="tl-inline">
+            <select class="input" id="tabSelect" aria-label="Tab"></select>
+            <button class="btn btn-sm btn-ghost" id="BtnTabsRefresh" type="button">Refresh list</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="st-row" id="sdk">
+        <div class="st-row-label">
+          <h2>SDK on this tab</h2>
+          <p>Reads <code>SalesforceInteractions</code> and <code>Evergage</code> on the page.</p>
+        </div>
+        <div class="st-row-body">
+          <div class="tl-actions">
+            <button class="btn btn-primary" id="BtnSdkInfo" type="button">Read SDK info</button>
+            <button class="btn btn-sm" id="BtnSdkInfoCopy" type="button" hidden>Copy as JSON</button>
+            <span class="hint" id="sdkStatus" role="status"></span>
+          </div>
+          <div id="sdkOut"></div>
+          <p class="hint">
+            Calls the SDK's get, is and has functions that take no arguments (for example
+            <code>getAnonymousId()</code> and <code>getConsents()</code>). Functions that take
+            arguments, or whose names suggest a server request, are listed but not called.
+          </p>
+        </div>
+      </section>
+
+      <section class="st-row" id="cookies">
+        <div class="st-row-label">
+          <h2>Cookies on this tab's site</h2>
+          <p>Clear the SDK cookies to come back as a new anonymous visitor.</p>
+        </div>
+        <div class="st-row-body">
+          <div class="tl-actions">
+            <button class="btn" id="BtnCookies" type="button">Show cookies</button>
+            <button class="btn" id="BtnClearSdkCookies" type="button">Clear SDK cookies</button>
+            <button class="btn btn-danger" id="BtnClearAll" type="button">Clear all cookies and site storage</button>
+            <label class="tl-check"><input type="checkbox" id="reloadAfter" checked /> Reload the tab after clearing</label>
+          </div>
+          <p class="hint">
+            SDK cookies are <code>_evga_…</code> (Personalization) and <code>_sfid_…</code> (Data
+            Cloud). "All" removes every cookie the page gets, including ones on a parent domain,
+            plus the page's localStorage and sessionStorage.
+          </p>
+          <p class="hint" id="cookieStatus" role="status"></p>
+          <div id="cookieOut"></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="./js/moment-with-locales.min.js"></script>
+    <script src="./js/json-viewer.js"></script>
+    <script src="./js/decode.js"></script>
+    <script src="./js/tools.js"></script>
+  </body>
+</html>

@@ -249,6 +249,10 @@ a {
   cursor: pointer;
 }
 
+a.btn {
+  text-decoration: none;
+}
+
 .btn:hover:not(:disabled) {
   background: var(--bg-hover);
 }
