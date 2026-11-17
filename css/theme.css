@@ -22,6 +22,10 @@
   --err-soft: #fbe9e6;
   --warn: #9a5c00;
   --warn-soft: #fdf1dc;
+  --src-dc: #6a3fb5;
+  --src-dc-soft: #efe8fa;
+  --src-ewr: #a2470f;
+  --src-ewr-soft: #fbe9dd;
   --json-key: #1c1f24;
   --json-string: #1b7a46;
   --json-number: #2346c4;
@@ -59,6 +63,10 @@
     --err-soft: #3a1f1c;
     --warn: #e2a64e;
     --warn-soft: #3a2b14;
+    --src-dc: #b79af0;
+    --src-dc-soft: #2c2140;
+    --src-ewr: #f0a070;
+    --src-ewr-soft: #3d2416;
     --json-key: #e3e6ea;
     --json-string: #7fd3a2;
     --json-number: #8fb2ff;
@@ -89,6 +97,10 @@
   --err-soft: #3a1f1c;
   --warn: #e2a64e;
   --warn-soft: #3a2b14;
+  --src-dc: #b79af0;
+  --src-dc-soft: #2c2140;
+  --src-ewr: #f0a070;
+  --src-ewr-soft: #3d2416;
   --json-key: #e3e6ea;
   --json-string: #7fd3a2;
   --json-number: #8fb2ff;
@@ -410,6 +422,24 @@ textarea.input {
 .badge-accent {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+/* Which product sent an event: Interaction Studio, Data Cloud, Einstein Web Recommendations */
+.badge-src {
+  min-width: 34px;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.badge-src[data-sdk="data-cloud"] {
+  background: var(--src-dc-soft);
+  color: var(--src-dc);
+}
+
+.badge-src[data-sdk="einstein"] {
+  background: var(--src-ewr-soft);
+  color: var(--src-ewr);
 }
 
 /* Empty states */

@@ -1,6 +1,6 @@
 # Interaction Studio (MCP) Logger
 
-A Chrome extension that logs every event a page sends to Salesforce Marketing Cloud Personalization (formerly Interaction Studio, served by `evergage.min.js`) and to the Data Cloud Web SDK (`c360a.min.js`). The payloads are base64 encoded, so the extension decodes them and shows formatted JSON, which makes debugging a site's personalization setup much quicker for developers and testers.
+A Chrome extension that logs every event a page sends to Salesforce Marketing Cloud Personalization (formerly Interaction Studio, served by `evergage.min.js`), to the Data Cloud Web SDK (`c360a.min.js`) and to Einstein Web Recommendations (Marketing Cloud Engagement's `collect.js` from `collect.igodigital.com`). The payloads are base64 encoded, so the extension decodes them and shows formatted JSON, which makes debugging a site's personalization setup much quicker for developers and testers.
 
 "MCP" here means Marketing Cloud Personalization, not the Model Context Protocol.
 
@@ -24,6 +24,14 @@ A Chrome extension that logs every event a page sends to Salesforce Marketing Cl
 Both `GET` requests with an encoded payload and `POST` requests with form data or a raw body are supported. The pages follow the system's light or dark mode, or pick **Light** or **Dark** with the theme switch in the top bar (in the popup, at the bottom). The choice applies to every page of the extension.
 
 <img src="gitImages/popup.png" alt="Popup with recent events" width="320"/>
+
+## Einstein Web Recommendations
+
+Sites that use Marketing Cloud Engagement's Einstein Web Recommendations load `//<MID>.collect.igodigital.com/collect.js` and call `_etmc.push([...])` (`setOrgId`, `setUserInfo`, `trackPageView`, `trackCart`, `trackConversion`, `trackWishlist`, `trackRating`, `updateItem`). collect.js sends each one as an image request to `nova.collect.igodigital.com/c2/<MID>/<track_page_view|track_cart|...>?payload=<JSON>` (or to the site's own host after `setFirstParty`). The extension logs those requests with the decoded payload, and logs recommendation requests to `<MID>.recs.igodigital.com/a/v2/<MID>/<page>/recommend.json` (or `.js`) with their query parameters (the recommendations themselves are in the response, which the extension does not read). chatters.ca is an example site.
+
+When a collect request is sent, the extension also reads `window._etmc` on that page and keeps a copy with the event: the org ID, `user_info` (the email given to `setUserInfo`), and, when the visitor came from a Marketing Cloud email link, `email_job_id`, `email_subscriber_id`, `email_list_id`, `email_job_batch_id`, `email_landing_url_id` and `mid` (from the link's `j`, `sfmc_sub`, `l`, `jb`, `u` and `mid` parameters). The event details show these fields first, then the whole `_etmc` copy and the payload. Tools > **Read SDK info** shows the page's current `_etmc` as well.
+
+Every event has a **Source** badge: **IS** for Interaction Studio (Personalization), **DC** for the Data Cloud Web SDK and **EWR** for Einstein Web Recommendations. Einstein events get their own entry in the site list (`<site> | Einstein Recs (org: <MID>)`), and the Explorer's **Source** filter and **Group by Source** split the stream by product.
 
 ## Export
 
@@ -77,7 +85,7 @@ An edited file over 1,400 KB is too large to serve that way. Then the CDN SDK is
 
 - **Decode a payload:** paste a whole beacon URL, the `event=` value (base64, URL-encoded or base64url), a form body or JSON, and see the JSON. The Explorer's **Decode** button opens it.
 - **Open a page with the SDK:** enter a page and an SDK script (`evergage.min.js`, `c360a.min.js` or a self-hosted copy), then **Inject SDK & open page**. The page opens in a new tab with that SDK, even if the page has none. In that tab the page's own SDK is blocked and its Content-Security-Policy header is removed, while the tab stays on the same site (subdomains included). The site's console says what happened.
-- **SDK on this tab:** **Read SDK info** reads `SalesforceInteractions` and `Evergage` on the chosen tab. It calls their get, is and has functions that take no arguments, such as `getAnonymousId()` and `getConsents()` (marked "doc", documented by Salesforce), shows their values and properties, and lists the other functions without calling them. Functions whose names suggest a server request (recommendations, campaigns, send, fetch) are never called. **Copy as JSON** copies the result.
+- **SDK on this tab:** **Read SDK info** reads `SalesforceInteractions`, `Evergage` and `_etmc` (Einstein Web Recommendations, data only) on the chosen tab. It calls their get, is and has functions that take no arguments, such as `getAnonymousId()` and `getConsents()` (marked "doc", documented by Salesforce), shows their values and properties, and lists the other functions without calling them. Functions whose names suggest a server request (recommendations, campaigns, send, fetch) are never called. **Copy as JSON** copies the result.
 - **Cookies on this tab's site:** **Show cookies** lists every cookie the page gets, SDK cookies (`_evga_…`, `_sfid_…`) first. **Clear SDK cookies** makes you a new anonymous visitor; **Clear all cookies and site storage** also removes the other cookies (including ones on a parent domain) and the page's localStorage and sessionStorage. The tab reloads afterwards unless you untick it.
 
 ## Feedback

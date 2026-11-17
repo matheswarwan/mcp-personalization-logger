@@ -183,11 +183,26 @@
     );
     if (!found.length) {
       parts.push(
-        '<div class="empty"><strong>No SDK on this page</strong>Neither <code>SalesforceInteractions</code> nor <code>Evergage</code> exists. Use "Open a page with the SDK" above to add one.</div>'
+        '<div class="empty"><strong>No SDK on this page</strong>None of <code>SalesforceInteractions</code>, <code>Evergage</code> or <code>_etmc</code> (Einstein Web Recommendations) exists. Use "Open a page with the SDK" above to add one.</div>'
       );
     }
     const objects = [];
     for (const sdk of found) {
+      if (sdk.einstein) {
+        // Einstein Web Recommendations: only data, shown open.
+        parts.push('<h3 class="tl-h">_etmc <span class="hint">(Einstein Web Recommendations)</span></h3>');
+        const propRows = sdk.props.map((p) => {
+          objects.push(p);
+          return `<tr><td class="mono">${escapeHtml(p.name)}</td><td>${valueCell(p)}</td></tr>`;
+        });
+        parts.push(
+          propRows.length
+            ? `<table class="tl-table"><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody>${propRows.join("")}</tbody></table>` +
+                '<p class="hint">email_job_id, email_subscriber_id, mid and the other email fields are set when the visitor came from a Marketing Cloud email link.</p>'
+            : '<p class="hint">_etmc has no data yet.</p>'
+        );
+        continue;
+      }
       parts.push(`<h3 class="tl-h">${escapeHtml(sdk.name)}</h3>`);
       const rows = [];
       for (const g of sdk.getters) {

@@ -199,7 +199,7 @@ body {
 .ex-stream-head,
 .fs-event {
   display: grid;
-  grid-template-columns: 16px 96px 56px minmax(120px, 0.9fr) minmax(0, 1.4fr);
+  grid-template-columns: 16px 96px 56px 40px minmax(120px, 0.9fr) minmax(0, 1.4fr);
   align-items: center;
   gap: 10px;
   padding: 0 12px;
@@ -474,7 +474,7 @@ body {
   }
 
   .fs-event {
-    grid-template-columns: auto auto auto minmax(0, 1fr);
+    grid-template-columns: auto auto auto auto minmax(0, 1fr);
     padding: 6px 12px;
   }
 
@@ -787,4 +787,20 @@ body {
 
 .kv dd .ex-link:hover {
   text-decoration: underline;
+}
+
+/* Einstein Web Recommendations: _etmc snapshot in the event details */
+.ex-etmc {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ex-etmc-note {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
 }

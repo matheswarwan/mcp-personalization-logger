@@ -3,13 +3,15 @@
  * into flat, sortable events. Shared by the popup and the Event Explorer.
  */
 (function (root, factory) {
-  const api = factory();
+  const einstein =
+    typeof module === "object" && module.exports ? require("./einstein.js") : root.McpEinstein;
+  const api = factory(einstein);
   if (typeof module === "object" && module.exports) {
     module.exports = api;
   } else {
     root.McpEvents = api;
   }
-})(typeof self !== "undefined" ? self : this, function () {
+})(typeof self !== "undefined" ? self : this, function (Einstein) {
   function getStatusCode(entry) {
     if (entry.statusCode !== undefined) return entry.statusCode;
     if (entry["statusCode;"] !== undefined) return entry["statusCode;"];
@@ -148,6 +150,10 @@
       const enc = pick(u.encryptedId);
       if (enc) return { key: "enc:" + enc, label: "Encrypted " + enc.slice(0, 12) + "...", known: false };
     }
+    // Einstein Web Recommendations: setUserInfo({ email }) is sent as user_info.
+    const info = payload.user_info && typeof payload.user_info === "object" ? payload.user_info : null;
+    const infoEmail = info && pick(info.email);
+    if (infoEmail) return { key: "id:" + infoEmail, label: infoEmail, known: true };
     const topId = pick(payload.userId);
     if (topId) return { key: "id:" + topId, label: topId, known: true };
 
@@ -170,7 +176,7 @@
     action: { label: "Action", value: (e) => ({ key: e.action, label: e.action }) },
     pageType: { label: "Page type", value: (e) => (e.pageType ? { key: e.pageType, label: e.pageType } : null) },
     page: { label: "Page", value: (e) => { const p = pagePathOf(e.pageUrl); return p ? { key: p, label: p } : null; } },
-    sdk: { label: "SDK", value: (e) => (e.sdk === "data-cloud" ? { key: "data-cloud", label: "Data Cloud Web SDK" } : { key: "evergage", label: "Evergage beacon" }) },
+    sdk: { label: "Source", value: (e) => ({ key: e.sdk || "evergage", label: sdkLabel(e.sdk) }) },
     site: { label: "Site", value: (e) => ({ key: e.site, label: siteLabel(e.site) }) },
   };
 
@@ -279,11 +285,15 @@
         const requestUrl = entry.url || "";
         const sdk =
           entry.sdk ||
-          (requestUrl.indexOf("c360a.salesforce.com") > -1 ? "data-cloud" : "evergage");
+          (requestUrl.indexOf("c360a.salesforce.com") > -1
+            ? "data-cloud"
+            : Einstein && Einstein.isEinsteinRequest(requestUrl)
+              ? "einstein"
+              : "evergage");
 
         // Expand Data Cloud batches so each nested event sorts on its own ms timestamp.
         const nestedEvents =
-          Array.isArray(payload.events) && payload.events.length > 1
+          sdk !== "einstein" && Array.isArray(payload.events) && payload.events.length > 1
             ? payload.events
             : null;
 
@@ -300,6 +310,12 @@
             Number.isFinite(capturedAt) ? capturedAt : Date.now()
           );
           if (!Number.isFinite(ts)) return;
+
+          if (sdk === "einstein") {
+            bySite[site].push(einsteinEvent(site, key, index, ts, capturedAt, statusCode, payload, requestUrl, entry.etmc));
+            total += 1;
+            return;
+          }
 
           bySite[site].push({
             id: site + "::" + key + "::" + index + "::" + nestedIndex,
@@ -326,6 +342,36 @@
     });
 
     return { bySite, total };
+  }
+
+  /** An Einstein Web Recommendations request as an explorer event. */
+  function einsteinEvent(site, key, index, ts, capturedAt, statusCode, payload, requestUrl, etmc) {
+    const collect = Einstein ? Einstein.collectInfo(requestUrl) : null;
+    let user = getUser(payload);
+    const etmcInfo = etmc && etmc.value && typeof etmc.value === "object" ? etmc.value.user_info : null;
+    if (!user && etmcInfo && etmcInfo.email) user = { key: "id:" + etmcInfo.email, label: String(etmcInfo.email), known: true };
+    const event = {
+      id: site + "::" + key + "::" + index + "::0",
+      site,
+      index: index * 1000,
+      ts,
+      capturedAt: Number.isFinite(capturedAt) ? capturedAt : ts,
+      statusCode,
+      payload,
+      url: requestUrl,
+      sdk: "einstein",
+      action: Einstein ? Einstein.actionName(requestUrl) : "Einstein request",
+      itemAction: Einstein ? Einstein.itemSummary(requestUrl, payload) : "",
+      pageUrl: (payload && !Array.isArray(payload) && payload.url) || (etmc && etmc.page) || requestUrl,
+      pageType: collect ? "collect: " + collect.endpoint : "recommendations",
+      ...userFields(user),
+    };
+    if (etmc) event.etmc = etmc;
+    return event;
+  }
+
+  function sdkLabel(sdk) {
+    return Einstein ? Einstein.sdkLabel(sdk) : sdk === "data-cloud" ? "Data Cloud Web SDK" : "Interaction Studio (Personalization)";
   }
 
   function userFields(user) {
@@ -364,5 +410,6 @@
     facetCounts,
     timeBuckets,
     pagePathOf,
+    sdkLabel,
   };
 });
