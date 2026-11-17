@@ -1,6 +1,6 @@
 # Project context: Interaction Studio (MCP) Logger
 
-Chrome MV3 extension, version 0.2.0 live in the Chrome Web Store (2026-11-06); 0.3.0 (Tools page) packaged in dist/, not yet uploaded.
+Chrome MV3 extension, version 0.3.0 uploaded to the Chrome Web Store 2026-11-17 (Tools page #1001 and Einstein Web Recommendations #1002, test zip from branch einstein-recs-1002).
 Logs and decodes events sent to Marketing Cloud Personalization (Evergage, `evergage.min.js`) and the Data Cloud Web SDK (`c360a.min.js`), and offers SDK Tools to swap or edit the SDK on chosen sites.
 User-facing docs: `readme.md`. Store listing notes: `docs/chrome-web-store.md`.
 

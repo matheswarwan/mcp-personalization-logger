@@ -1,10 +1,10 @@
 # Work in progress
 
 ## Feedback #1002 (2026-11-17): Einstein Web Recommendations
-- Branch `einstein-recs-1002`, PR open. Not packaged, version not bumped (0.3.0 still not uploaded; the user decides whether this goes into 0.3.0 or a later version).
+- **Uploaded to the Chrome Web Store as 0.3.0 by the user 2026-11-17** (this test zip). D1 #1001, #1002 released 0.3.0. Branch `einstein-recs-1002`, draft PR #3 (merge it so main matches the store). Test zip `dist/interaction-studio-mcp-logger-0.3.0-test-026cb3b.zip` (commit after 026cb3b, version 0.3.0 unchanged; push was failing on a ~4 KB/s uplink on 2026-11-17). Not packaged, version not bumped (0.3.0 still not uploaded; the user decides whether this goes into 0.3.0 or a later version).
 - Captures collect.igodigital.com collect calls (and first-party /c2/ calls) plus recs.igodigital.com recommendation requests; keeps a `window._etmc` snapshot per collect event; Source badge IS / DC / EWR on rows (Explorer, popup), Source filter and group-by; Einstein section in event details; `_etmc` in exports (email masked, job ids kept) and Tools > Read SDK info.
 - Unit tests 55/55 (`tests/einstein.test.mjs`, 8 new). Not checked in a browser: the Jetson's llama-server (4.5 GB) leaves under 600 MB free, so mem-guard kills Chrome. Check on chatters.ca (org 546002015) once a browser can run: collect events appear, `_etmc` snapshot present, an email link (`?j=..&sfmc_sub=..&l=..&u=..&jb=..&mid=..`) fills the job fields.
-- D1 row #1002 not yet marked (no version decided).
+
 
 ## State (2026-11-13)
 - 0.2.0 is live in the Chrome Web Store.
