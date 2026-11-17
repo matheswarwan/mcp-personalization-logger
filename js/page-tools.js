@@ -251,15 +251,42 @@
       }
       return { name: globalName, found: true, getters, others, props };
     }
+    // Einstein Web Recommendations (igodigital collect.js) keeps its data on window._etmc:
+    // org_id, user_info, and the email job / subscriber ids from an email click. Only the
+    // data is listed (no functions are called); before collect.js loads it is the queue.
+    function readEtmc() {
+      let obj;
+      try {
+        obj = window._etmc;
+      } catch (_) {}
+      if (!obj || typeof obj !== "object") return { name: "_etmc", found: false };
+      const props = [];
+      if (Array.isArray(obj)) {
+        props.push({ name: "(queued pushes, collect.js not loaded)", value: shown(obj), object: true });
+      } else {
+        for (const key of Object.keys(obj).sort()) {
+          let v;
+          try {
+            v = obj[key];
+          } catch (e) {
+            props.push({ name: key, error: String(e && e.message) });
+            continue;
+          }
+          if (typeof v === "function") continue;
+          props.push({ name: key, value: shown(v), object: v !== null && typeof v === "object" });
+        }
+      }
+      return { name: "_etmc", found: true, einstein: true, getters: [], others: [], props };
+    }
     const scripts = [...document.querySelectorAll("script[src]")]
       .map((s) => s.src)
-      .filter((src) => /\/(evergage[A-Za-z]*|c360a)(\.min)?\.js([?#]|$)/.test(src));
+      .filter((src) => /\/(evergage[A-Za-z]*|c360a)(\.min)?\.js([?#]|$)/.test(src) || /collect\.igodigital\.com\/collect\.js/.test(src));
     return {
       url: location.href,
       at: Date.now(),
       scripts,
       injected: !!(window.__MCP_SDK_TOOLS_INJECTED__ || window.__MCP_LOCAL_SDK_INJECTED__),
-      sdks: [await read("SalesforceInteractions"), await read("Evergage")],
+      sdks: [await read("SalesforceInteractions"), await read("Evergage"), readEtmc()],
     };
   }
 

@@ -109,7 +109,7 @@
       return (
         `<button type="button" class="pp-row${failed ? " error" : ""}" role="listitem" aria-expanded="${open}" data-id="${escapeHtml(e.id)}" title="${escapeHtml(moment(e.ts).format("YYYY-MM-DD HH:mm:ss.SSS"))}">` +
         `<span class="pp-time">${escapeHtml(moment(e.ts).format("HH:mm:ss"))}</span>${badge}` +
-        `<span class="pp-main"><span class="pp-action">${escapeHtml(e.action)}</span><span class="pp-sub">${escapeHtml(sub)}</span></span>` +
+        `<span class="pp-main"><span class="pp-action"><span class="badge badge-src pp-src" data-sdk="${escapeHtml(e.sdk || "evergage")}" title="${escapeHtml(McpEinstein.sdkLabel(e.sdk))}">${escapeHtml(McpEinstein.sdkShort(e.sdk))}</span>${escapeHtml(e.action)}</span><span class="pp-sub">${escapeHtml(sub)}</span></span>` +
         "</button>" +
         (open
           ? `<div class="pp-expand"><div class="pp-expand-actions"><button type="button" class="btn btn-sm" data-act="explorer">Open in Explorer</button><button type="button" class="btn btn-sm" data-act="copy">Copy JSON</button></div><div class="pp-json"></div></div>`

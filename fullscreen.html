@@ -104,7 +104,7 @@
         <label class="ex-facet"><span>User</span><select class="input" id="fsFilterUser" data-facet="user"></select></label>
         <label class="ex-facet"><span>Action</span><select class="input" id="fsFilterAction" data-facet="action"></select></label>
         <label class="ex-facet"><span>Page type</span><select class="input" id="fsFilterPageType" data-facet="pageType"></select></label>
-        <label class="ex-facet"><span>SDK</span><select class="input" id="fsFilterSdk" data-facet="sdk"></select></label>
+        <label class="ex-facet"><span>Source</span><select class="input" id="fsFilterSdk" data-facet="sdk"></select></label>
         <span class="ex-facets-sep" aria-hidden="true"></span>
         <label class="ex-facet"><span>Group by</span>
           <select class="input" id="fsGroupBy">
@@ -113,7 +113,7 @@
             <option value="action">Action</option>
             <option value="pageType">Page type</option>
             <option value="page">Page</option>
-            <option value="sdk">SDK</option>
+            <option value="sdk">Source</option>
           </select>
         </label>
         <button class="btn btn-sm" id="BtnFsChart" type="button" aria-pressed="true" title="Show or hide the events over time chart">Chart</button>
@@ -155,6 +155,7 @@
             <span class="ex-col-check"><input type="checkbox" id="fsCheckAll" aria-label="Select every event shown" title="Select every event shown" /></span>
             <span class="ex-col-time">Time</span>
             <span class="ex-col-status">Status</span>
+            <span class="ex-col-src" title="Which product sent it: IS = Interaction Studio (Personalization), DC = Data Cloud Web SDK, EWR = Einstein Web Recommendations">Source</span>
             <span class="ex-col-action">Action</span>
             <span class="ex-col-page" id="fsStreamSubtitle">Page</span>
           </div>
@@ -182,6 +183,7 @@
 
     <script src="./js/moment-with-locales.min.js"></script>
     <script src="./js/json-viewer.js"></script>
+    <script src="./js/einstein.js"></script>
     <script src="./js/events.js"></script>
     <script src="./js/exporters.js"></script>
     <script src="./js/fullscreen.js"></script>

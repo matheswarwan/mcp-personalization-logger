@@ -702,6 +702,11 @@
     return `<span class="badge ${ok ? "badge-ok" : "badge-err"}">${escapeHtml(statusCode)}</span>`;
   }
 
+  function sourceBadge(sdk) {
+    const key = sdk || "evergage";
+    return `<span class="badge badge-src" data-sdk="${escapeHtml(key)}" title="${escapeHtml(McpEinstein.sdkLabel(key))}">${escapeHtml(McpEinstein.sdkShort(key))}</span>`;
+  }
+
   function pagePath(url) {
     try {
       const u = new URL(url);
@@ -721,6 +726,7 @@
       `<span class="ex-col-check"><input type="checkbox" class="ex-check" tabindex="-1" aria-label="Select this event"${checked ? " checked" : ""} /></span>` +
       `<span class="fs-event-time" title="${escapeHtml(moment(event.ts).format("YYYY-MM-DD HH:mm:ss.SSS"))}">${escapeHtml(moment(event.ts).format("HH:mm:ss.SSS"))}</span>` +
       `<span class="ex-col-status">${statusBadge(event.statusCode)}</span>` +
+      `<span class="ex-col-src">${sourceBadge(event.sdk)}</span>` +
       `<span class="ex-col-action"><span class="fs-event-action">${escapeHtml(event.action)}</span>${sub ? `<span class="fs-event-sub">${escapeHtml(sub)}</span>` : ""}</span>` +
       `<span class="ex-col-page fs-event-url" title="${escapeHtml(event.pageUrl || "")}">${escapeHtml(pagePath(event.pageUrl))}</span>` +
       "</div>"
@@ -832,7 +838,7 @@
       ["Status", event.statusCode == null ? "Transport error" : String(event.statusCode)],
       ["User", event.userLabel || "-"],
       ["Site", event.site],
-      ["SDK", event.sdk === "data-cloud" ? "Data Cloud Web SDK" : "Evergage beacon"],
+      ["Source", McpEinstein.sdkLabel(event.sdk)],
       ["Page type", event.pageType || "-"],
       ["Page URL", event.pageUrl || "-"],
       ["Request URL", McpExport.shortenRequestUrl(event.url) || "-"],
@@ -848,11 +854,50 @@
           return `<dt>${escapeHtml(r[0])}</dt><dd>${escapeHtml(r[1])}${extra}</dd>`;
         })
         .join("") +
-      '</dl><div class="fs-json" id="fsJsonMount"></div>';
+      "</dl>" +
+      einsteinDetail(event) +
+      '<div class="fs-json" id="fsJsonMount"></div>';
 
     const viewer = new JSONViewer();
     document.getElementById("fsJsonMount").appendChild(viewer.getContainer());
     viewer.showJSON(event.payload || {});
+
+    const etmcMount = document.getElementById("fsEtmcMount");
+    if (etmcMount) {
+      const etmcViewer = new JSONViewer();
+      etmcMount.appendChild(etmcViewer.getContainer());
+      etmcViewer.showJSON(event.etmc.value == null ? {} : event.etmc.value);
+    }
+  }
+
+  /**
+   * Einstein Web Recommendations: the email and org fields collect.js keeps on _etmc, and
+   * the whole _etmc snapshot read from the page when the event was sent.
+   */
+  function einsteinDetail(event) {
+    if (event.sdk !== "einstein") return "";
+    const fields = McpEinstein.emailFields(event.payload, event.etmc);
+    let html = '<div class="ex-etmc">Einstein Web Recommendations</div>';
+    if (fields.length) {
+      html +=
+        '<dl class="kv">' +
+        fields.map((r) => `<dt>${escapeHtml(r[0])}</dt><dd>${escapeHtml(r[1])}</dd>`).join("") +
+        "</dl>";
+    }
+    const etmc = event.etmc;
+    if (!etmc) {
+      html += McpEinstein.collectInfo(event.url)
+        ? '<p class="ex-etmc-note">window._etmc was not read for this event (captured before this version, or the tab was gone).</p>'
+        : '<p class="ex-etmc-note">A recommendations request: the query parameters are below. The recommendations themselves are in the response, which the extension does not read.</p>';
+    } else if (!etmc.found) {
+      html += `<p class="ex-etmc-note">window._etmc was not found on the page${etmc.error ? " (" + escapeHtml(etmc.error) + ")" : ""}.</p>`;
+    } else {
+      html +=
+        '<div class="ex-etmc">window._etmc on the page</div>' +
+        `<p class="ex-etmc-note">Read from ${escapeHtml(etmc.page || "the page")} when the event was sent${etmc.loaded ? "" : "; collect.js had not loaded yet, so these are the queued pushes"}. Email and job fields appear when the visitor came from a Marketing Cloud email link.</p>` +
+        '<div class="fs-json" id="fsEtmcMount"></div>';
+    }
+    return html + '<div class="ex-etmc">Payload</div>';
   }
 
   function selectEvent(id, scroll) {

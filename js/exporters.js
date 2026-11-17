@@ -17,6 +17,9 @@
   const SENSITIVE_KEY =
     /(e-?mail|phone|mobile|first_?name|last_?name|full_?name|street|address|postal|zip_?code|birth|dob|password|passwd|secret|token|authorization|cookie|ssn)/i;
 
+  // Einstein Web Recommendations' email send ids on _etmc: not personal, so kept.
+  const NOT_SENSITIVE_KEY = /^email_(job_id|list_id|landing_url_id|job_batch_id)$/;
+
   // Emails, also URL-encoded (%40) as they appear in page URLs.
   const EMAIL = /[A-Za-z0-9._%+-]+(?:@|%40)[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
@@ -30,7 +33,7 @@
       Object.keys(value).forEach((key) => {
         const v = value[key];
         out[key] =
-          SENSITIVE_KEY.test(key) && v !== null && typeof v !== "object"
+          SENSITIVE_KEY.test(key) && !NOT_SENSITIVE_KEY.test(key) && v !== null && typeof v !== "object"
             ? MASK
             : maskValue(v);
       });
@@ -48,6 +51,10 @@
       if (parsed.searchParams.has("event")) {
         parsed.searchParams.set("event", "DECODED_BELOW");
       }
+      // Einstein Web Recommendations collect calls carry the JSON in ?payload=.
+      if (/^\/c2\/[^/]+\/[a-z_]+\/?$/.test(parsed.pathname) && parsed.searchParams.has("payload")) {
+        parsed.searchParams.set("payload", "DECODED_BELOW");
+      }
       return decodeURIComponent(parsed.toString());
     } catch (_) {
       return String(url);
@@ -63,7 +70,9 @@
   }
 
   function sdkLabel(sdk) {
-    return sdk === "data-cloud" ? "Data Cloud Web SDK" : "Evergage (MCP) beacon";
+    if (sdk === "data-cloud") return "Data Cloud Web SDK";
+    if (sdk === "einstein") return "Einstein Web Recommendations (collect.igodigital.com)";
+    return "Interaction Studio (Personalization, Evergage beacon)";
   }
 
   function isoLocal(ts) {
@@ -112,7 +121,7 @@
       const rawPage = event.pageUrl && event.pageUrl !== event.url ? event.pageUrl : "";
       const pageUrl = mask ? maskValue(rawPage) : rawPage;
       const requestUrl = shortenRequestUrl(event.url);
-      return {
+      const row = {
         n: index + 1,
         timestamp: event.ts,
         isoTime: new Date(event.ts).toISOString(),
@@ -127,6 +136,11 @@
         requestUrl: mask ? maskValue(requestUrl) : requestUrl,
         payload,
       };
+      if (event.etmc && event.etmc.found) {
+        const etmc = { loaded: !!event.etmc.loaded, value: event.etmc.value };
+        row.etmc = mask ? maskValue(etmc) : etmc;
+      }
+      return row;
     });
 
     const byAction = {};
@@ -219,7 +233,7 @@
     lines.push(
       "Captured in the browser by the Interaction Studio (MCP) Logger extension" +
         (model.extensionVersion ? " " + model.extensionVersion : "") +
-        ". Each event is a request the page sent to Marketing Cloud Personalization (Evergage) or the Data Cloud Web SDK; the payload is the decoded request body.",
+        ". Each event is a request the page sent to Marketing Cloud Personalization (Evergage) the Data Cloud Web SDK or Einstein Web Recommendations (collect.igodigital.com); the payload is the decoded request body.",
       ""
     );
     lines.push("- Exported: " + model.exportedAt);
@@ -305,6 +319,18 @@
           "(Payload cut short: " + cut + " more characters. Use Download Markdown or JSON for the full payload.)"
         );
       }
+      if (e.etmc) {
+        const etmcJson = JSON.stringify(e.etmc.value, null, 2) || "null";
+        const g = fence(etmcJson);
+        lines.push(
+          "",
+          "window._etmc on the page when it was sent" + (e.etmc.loaded ? "" : " (collect.js not loaded yet: queued pushes)") + ":",
+          "",
+          g + "json",
+          etmcJson,
+          g
+        );
+      }
       lines.push("");
     });
 
@@ -377,7 +403,15 @@
           facts +
           "</dl><pre>" +
           esc(JSON.stringify(e.payload, null, 2)) +
-          "</pre></details>"
+          "</pre>" +
+          (e.etmc
+            ? "<p>window._etmc on the page when it was sent" +
+              (e.etmc.loaded ? "" : " (collect.js not loaded yet: queued pushes)") +
+              ":</p><pre>" +
+              esc(JSON.stringify(e.etmc.value, null, 2) || "null") +
+              "</pre>"
+            : "") +
+          "</details>"
         );
       })
       .join("\n");

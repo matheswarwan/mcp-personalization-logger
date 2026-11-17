@@ -1,4 +1,4 @@
-importScripts("sdk-config.js", "page-tools.js");
+importScripts("sdk-config.js", "page-tools.js", "einstein.js");
 
 console.log("Background js loaded..");
 
@@ -30,8 +30,15 @@ function isTrackedEventRequest(request) {
     (request.method === "GET" || request.method === "POST") &&
     typeof request.url === "string" &&
     (isEvergageEventRequest(request.url) ||
-      isDataCloudEventRequest(request.url))
+      isDataCloudEventRequest(request.url) ||
+      McpEinstein.isEinsteinRequest(request.url))
   );
+}
+
+function sdkOf(url) {
+  if (isDataCloudEventRequest(url)) return "data-cloud";
+  if (McpEinstein.isEinsteinRequest(url)) return "einstein";
+  return "evergage";
 }
 
 function decodeBase64Utf8(encodedString) {
@@ -65,6 +72,9 @@ function parseEventValue(eventValue) {
 }
 
 function extractPayload(request) {
+  if (McpEinstein.isEinsteinRequest(request.url)) {
+    return McpEinstein.extractPayload(request.url);
+  }
   if (request.method === "GET") {
     const url = new URL(request.url);
     // searchParams.get already URL-decodes the value
@@ -127,6 +137,10 @@ function buildHostKey(request, websiteName) {
     return websiteName + " | Data Cloud (app: " + shortId + ")";
   }
 
+  if (McpEinstein.isEinsteinRequest(request.url)) {
+    return websiteName + " | " + McpEinstein.hostKeyDetail(request.url);
+  }
+
   const evergageHost = url.hostname.split(".")[0];
   const pathParts = url.pathname.split("/").filter(Boolean);
   const datasetName = pathParts[pathParts.length - 1] || "unknown";
@@ -171,7 +185,7 @@ function extractEventTime(payload) {
   return null;
 }
 
-function saveEvent(request, payload, statusCode) {
+function saveEvent(request, payload, statusCode, extra) {
   const websiteName = getWebsiteName(request);
   const hostName = buildHostKey(request, websiteName);
   const capturedAt = Date.now();
@@ -186,8 +200,9 @@ function saveEvent(request, payload, statusCode) {
     eventTime: eventTime,
     website: websiteName,
     statusCode: statusCode,
-    sdk: isDataCloudEventRequest(request.url) ? "data-cloud" : "evergage",
+    sdk: sdkOf(request.url),
   };
+  if (extra) Object.assign(isPayload[epocheDate], extra);
 
   storageWriteQueue = storageWriteQueue
     .then(
@@ -224,7 +239,32 @@ function finalizeRequest(requestId, statusCode) {
     return;
   }
   pendingRequests.delete(requestId);
+  if (pending.request.sdk === "einstein" && McpEinstein.collectInfo(pending.request.url)) {
+    // Keep what _etmc holds on the page when the event was sent (org id, user_info,
+    // email job / subscriber ids from an email click). Saved even if the read fails.
+    readEtmc(pending.request.tabId, pending.request.frameId).then((etmc) =>
+      saveEvent(pending.request, pending.payload, statusCode, etmc ? { etmc } : null)
+    );
+    return;
+  }
   saveEvent(pending.request, pending.payload, statusCode);
+}
+
+/** Snapshot of window._etmc in the frame that sent an Einstein collect request, or null. */
+async function readEtmc(tabId, frameId) {
+  if (!(tabId >= 0)) return null;
+  try {
+    const run = chrome.scripting.executeScript({
+      target: { tabId, frameIds: [frameId >= 0 ? frameId : 0] },
+      world: "MAIN",
+      func: McpEinstein.snapshotEtmc,
+    });
+    const results = await Promise.race([run, delay(3000).then(() => null)]);
+    const value = results && results[0] && results[0].result;
+    return value && typeof value === "object" ? value : null;
+  } catch (e) {
+    return { found: false, error: String((e && e.message) || e) };
+  }
 }
 
 chrome.webRequest.onBeforeRequest.addListener(
@@ -240,6 +280,9 @@ chrome.webRequest.onBeforeRequest.addListener(
           method: request.method,
           initiator: request.initiator,
           documentUrl: request.documentUrl,
+          tabId: request.tabId,
+          frameId: request.frameId,
+          sdk: sdkOf(request.url),
         },
         payload: payload,
       });
