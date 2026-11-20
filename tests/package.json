@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test exporters.test.mjs sdk-config.test.mjs events.test.mjs page-tools.test.mjs einstein.test.mjs responses.test.mjs",
+    "test:e2e-responses": "node response-e2e.mjs",
     "test:smoke": "node extension-smoke.mjs",
     "test:e2e-sdk": "node sdk-inject-e2e.mjs",
     "test:e2e-tools": "node tools-e2e.mjs"

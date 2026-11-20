@@ -34,7 +34,7 @@ Used to read the URLs of the developer's open tabs in SDK Tools: to pre-fill "Pa
 
 ### webRequest
 
-Reads requests the page sends to Marketing Cloud Personalization (evergage.com/api2/event/) and the Data Cloud Web SDK (c360a.salesforce.com/web/events/) to capture and decode the event payloads and their response status. Other requests are ignored. Data stays in local storage on the device.
+Reads requests the page sends to Marketing Cloud Personalization (evergage.com/api2/event/) and the Data Cloud Web SDK (c360a.salesforce.com/web/events/) to capture and decode the event payloads and their response status. A content script in the page's main world copies the response body of those same requests (XHR and fetch only) so the event can show what the server answered, for example the campaigns served. Other requests are ignored. Data stays in local storage on the device.
 
 ### storage, unlimitedStorage
 

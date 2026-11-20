@@ -188,6 +188,16 @@ function extractEventTime(payload) {
   return null;
 }
 
+async function blinkIcon() {
+  try {
+    chrome.action.setIcon({ path: "../images/activeImg/cloud-48.png" });
+    await delay(CONFIG.RECORD_TIMER);
+    chrome.action.setIcon({ path: "../images/cloud/cloud-48.png" });
+  } catch (e) {
+    console.warn("Failed to update action icon", e);
+  }
+}
+
 function saveEvent(request, payload, statusCode, extra) {
   const websiteName = getWebsiteName(request);
   const hostName = buildHostKey(request, websiteName);
@@ -219,17 +229,11 @@ function saveEvent(request, payload, statusCode, extra) {
           chrome.storage.local.get(hostName, function (stored) {
             const list = Array.isArray(stored[hostName]) ? stored[hostName] : [];
             list.push(isPayload);
-            chrome.storage.local.set({ [hostName]: list }, async function () {
-              try {
-                chrome.action.setIcon({
-                  path: "../images/activeImg/cloud-48.png",
-                });
-                await delay(CONFIG.RECORD_TIMER);
-                chrome.action.setIcon({ path: "../images/cloud/cloud-48.png" });
-              } catch (e) {
-                console.warn("Failed to update action icon", e);
-              }
+            chrome.storage.local.set({ [hostName]: list }, function () {
+              // Free the queue now: the icon blink used to hold every later write
+              // (and the responses waiting for them) for RECORD_TIMER each.
               resolve();
+              blinkIcon();
             });
           });
         })
