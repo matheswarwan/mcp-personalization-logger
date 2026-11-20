@@ -856,11 +856,27 @@
         .join("") +
       "</dl>" +
       einsteinDetail(event) +
-      '<div class="fs-json" id="fsJsonMount"></div>';
+      '<div class="fs-json" id="fsJsonMount"></div>' +
+      responseDetail(event);
 
     const viewer = new JSONViewer();
     document.getElementById("fsJsonMount").appendChild(viewer.getContainer());
     viewer.showJSON(event.payload || {});
+
+    const responseMount = document.getElementById("fsResponseMount");
+    if (responseMount) {
+      const body = event.response.body;
+      if (body && typeof body === "object") {
+        const responseViewer = new JSONViewer();
+        responseMount.appendChild(responseViewer.getContainer());
+        responseViewer.showJSON(body);
+      } else {
+        const pre = document.createElement("pre");
+        pre.className = "ex-response-text";
+        pre.textContent = body == null || body === "" ? "(empty response)" : String(body);
+        responseMount.appendChild(pre);
+      }
+    }
 
     const etmcMount = document.getElementById("fsEtmcMount");
     if (etmcMount) {
@@ -868,6 +884,28 @@
       etmcMount.appendChild(etmcViewer.getContainer());
       etmcViewer.showJSON(event.etmc.value == null ? {} : event.etmc.value);
     }
+  }
+
+  /**
+   * What the server answered (feedback #1003): campaigns served first, then the body.
+   * Einstein requests are images, so they never have one.
+   */
+  function responseDetail(event) {
+    if (event.sdk === "einstein") return "";
+    const r = event.response;
+    if (!r) {
+      return '<div class="ex-etmc">Response</div><p class="ex-etmc-note">No response saved for this event. Responses are saved from version 0.3.1 on, for requests the page sends with XHR or fetch (sendBeacon and image requests have no readable response).</p>';
+    }
+    const served = McpResponses.campaignsServed(r.body);
+    let html = '<div class="ex-etmc">Response</div>' +
+      `<p class="ex-etmc-note">HTTP ${escapeHtml(String(r.status || "?"))}, ${escapeHtml(Number(r.size || 0).toLocaleString())} characters${r.truncated ? ", cut at 256 KB" : ""}.</p>`;
+    if (served.length) {
+      html += '<dl class="kv">' + served.map((c) =>
+        `<dt>Campaign</dt><dd>${escapeHtml(c.campaign || "(no name)")}${c.experience ? " / " + escapeHtml(c.experience) : ""}${c.userGroup ? ' <span class="ex-chip">' + escapeHtml(c.userGroup) + "</span>" : ""}</dd>`).join("") + "</dl>";
+    } else if (r.body && typeof r.body === "object" && Array.isArray(r.body.campaignResponses)) {
+      html += '<p class="ex-etmc-note">No campaign was served for this event.</p>';
+    }
+    return html + '<div class="fs-json" id="fsResponseMount"></div>';
   }
 
   /**

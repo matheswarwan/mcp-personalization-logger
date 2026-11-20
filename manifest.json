@@ -43,6 +43,16 @@
         "js/contentScript.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "js/response-hook.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ]
 }

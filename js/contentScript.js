@@ -240,3 +240,20 @@
     // Extension context may be unavailable during navigation edge cases.
   }
 })();
+
+// Forward event responses copied by js/response-hook.js (page MAIN world) to the
+// background, which saves them with their event (feedback #1003).
+(function () {
+  window.addEventListener("message", (e) => {
+    const d = e.data;
+    if (e.source !== window || !d || d.source !== "mcp-logger-response" || typeof d.url !== "string") return;
+    try {
+      chrome.runtime.sendMessage(
+        { type: "MCP_EVENT_RESPONSE", url: d.url, status: Number(d.status) || 0, body: typeof d.body === "string" ? d.body : null, via: d.via === "fetch" ? "fetch" : "xhr" },
+        () => void chrome.runtime.lastError
+      );
+    } catch (_) {
+      // Extension reloaded or context gone.
+    }
+  });
+})();

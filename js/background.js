@@ -1,4 +1,4 @@
-importScripts("sdk-config.js", "page-tools.js", "einstein.js");
+importScripts("sdk-config.js", "page-tools.js", "einstein.js", "responses.js");
 
 console.log("Background js loaded..");
 
@@ -13,6 +13,9 @@ let storageWriteQueue = Promise.resolve();
 
 /** requestId -> pending event data captured in onBeforeRequest */
 const pendingRequests = new Map();
+
+/** Pairs event responses from the page with their saved events (feedback #1003). */
+const responseMatcher = McpResponses.createMatcher();
 
 function isEvergageEventRequest(url) {
   return url.indexOf("evergage.com/api2/event/") > -1;
@@ -203,6 +206,9 @@ function saveEvent(request, payload, statusCode, extra) {
     sdk: sdkOf(request.url),
   };
   if (extra) Object.assign(isPayload[epocheDate], extra);
+  const early = responseMatcher.takeResponse(request.url);
+  if (early) isPayload[epocheDate].response = early;
+  else if (McpResponses.isTrackedResponseUrl(request.url)) responseMatcher.rememberSaved(request.url, hostName, epocheDate);
 
   storageWriteQueue = storageWriteQueue
     .then(
@@ -231,6 +237,28 @@ function saveEvent(request, payload, statusCode, extra) {
     .catch((e) => {
       console.error("Failed to persist event", e);
     });
+}
+
+/** Attach a response copied from the page to its event, now or when the event is saved. */
+function saveEventResponse(message) {
+  const parsed = McpResponses.parseResponseBody(message.body);
+  const response = { status: message.status, via: message.via, receivedAt: Date.now(), ...(parsed || { body: null, truncated: false, size: 0 }) };
+  const target = responseMatcher.onResponse(message.url, response);
+  if (!target) return;
+  storageWriteQueue = storageWriteQueue
+    .then(
+      () =>
+        new Promise((resolve) => {
+          chrome.storage.local.get(target.hostName, (stored) => {
+            const list = Array.isArray(stored[target.hostName]) ? stored[target.hostName] : [];
+            const entry = list.find((x) => x && x[target.key]);
+            if (!entry) return resolve();
+            entry[target.key].response = response;
+            chrome.storage.local.set({ [target.hostName]: list }, () => resolve());
+          });
+        })
+    )
+    .catch((e) => console.error("Failed to save event response", e));
 }
 
 function finalizeRequest(requestId, statusCode) {
@@ -712,6 +740,11 @@ async function stopSdkTools(reload) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const type = message && message.type;
+
+  if (type === "MCP_EVENT_RESPONSE") {
+    if (sender.id === chrome.runtime.id && McpResponses.isTrackedResponseUrl(message.url)) saveEventResponse(message);
+    return false;
+  }
 
   if (type === "MCP_GET_SETTINGS") {
     readMcpSettings().then((settings) => sendResponse({ ok: true, settings }));
