@@ -333,6 +333,8 @@
             pageType: getPageType(nestedPayload),
             // A batch's nested events lose the batch's top level, so fall back to it.
             ...userFields(getUser(nestedPayload) || getUser(payload)),
+            // what the server answered (campaigns served...), saved since 0.3.1 (feedback #1003)
+            ...(entry.response ? { response: entry.response } : {}),
           });
           total += 1;
         });

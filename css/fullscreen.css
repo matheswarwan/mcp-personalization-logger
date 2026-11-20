@@ -804,3 +804,27 @@ body {
   color: var(--text-muted);
   font-size: 12px;
 }
+
+/* Saved response (feedback #1003) */
+.ex-chip {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.ex-response-text {
+  margin: 0;
+  padding: 8px;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

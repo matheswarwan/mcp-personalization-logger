@@ -140,6 +140,11 @@
         const etmc = { loaded: !!event.etmc.loaded, value: event.etmc.value };
         row.etmc = mask ? maskValue(etmc) : etmc;
       }
+      if (event.response) {
+        // what the server answered (feedback #1003); masked like the payload
+        const response = { status: event.response.status, truncated: !!event.response.truncated, body: event.response.body };
+        row.response = mask ? maskValue(response) : response;
+      }
       return row;
     });
 
@@ -319,6 +324,17 @@
           "(Payload cut short: " + cut + " more characters. Use Download Markdown or JSON for the full payload.)"
         );
       }
+      if (e.response) {
+        let rj = typeof e.response.body === "string" ? e.response.body : JSON.stringify(e.response.body, null, 2) || "null";
+        let rcut = 0;
+        if (maxChars && rj.length > maxChars) {
+          rcut = rj.length - maxChars;
+          rj = rj.slice(0, maxChars);
+        }
+        const rf = fence(rj);
+        lines.push("", "Response (HTTP " + (e.response.status || "?") + (e.response.truncated ? ", cut at 256 KB when saved" : "") + "):", "", rf + (typeof e.response.body === "string" ? "" : "json"), rj, rf);
+        if (rcut) lines.push("", "(Response cut short: " + rcut + " more characters. Use Download Markdown or JSON for the full response.)");
+      }
       if (e.etmc) {
         const etmcJson = JSON.stringify(e.etmc.value, null, 2) || "null";
         const g = fence(etmcJson);
@@ -404,6 +420,11 @@
           "</dl><pre>" +
           esc(JSON.stringify(e.payload, null, 2)) +
           "</pre>" +
+          (e.response
+            ? "<p>Response (HTTP " + esc(String(e.response.status || "?")) + "):</p><pre>" +
+              esc(typeof e.response.body === "string" ? e.response.body : JSON.stringify(e.response.body, null, 2) || "null") +
+              "</pre>"
+            : "") +
           (e.etmc
             ? "<p>window._etmc on the page when it was sent" +
               (e.etmc.loaded ? "" : " (collect.js not loaded yet: queued pushes)") +
